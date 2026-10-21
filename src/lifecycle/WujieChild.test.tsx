@@ -1,0 +1,112 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { startApp } from 'wujie'
+import type { ChildContext } from '../bridge/context'
+import type { ChildManifest } from '../manifest/types'
+import { WujieChild, resolveChildUrl } from './WujieChild'
+
+const manifest: ChildManifest = {
+  key: 'tianquan-shoubing',
+  displayName: '身份与安全',
+  url: '/children/tianquan-shoubing/',
+  standaloneUrl: '/overview',
+  version: '0.0.1',
+  contractVersion: 'xingyuan-1',
+  compatibleHostRange: '>=0.0.1 <0.1.0',
+  requiredCapabilities: [],
+}
+
+const context: ChildContext = {
+  platformKey: 'tianquan-shoubing',
+  routeIntent: '/xingyuan/tianquan-shoubing/overview',
+  scopeDisplay: 'default',
+  hostVersion: '0.0.1',
+}
+
+afterEach(() => {
+  vi.clearAllMocks()
+})
+
+beforeEach(() => {
+  const testWindow = window as unknown as Record<string, unknown>
+  delete testWindow.__WUJIE_TEST_EVENTS
+  delete testWindow.__WUJIE_TEST_TRIGGER_LOAD_ERROR
+})
+
+describe('WujieChild', () => {
+  it('mounts the child in a concrete host and reports MOUNTED', async () => {
+    const onState = vi.fn()
+
+    render(<WujieChild manifest={manifest} context={context} onState={onState} />)
+
+    await waitFor(() => expect(onState).toHaveBeenCalledWith({
+      type: 'MOUNTED',
+      cleanupToken: 'tianquan-shoubing:0.0.1',
+    }))
+    expect(screen.getByTestId('wujie-host-tianquan-shoubing')).toBeInTheDocument()
+    expect(vi.mocked(startApp)).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'tianquan-shoubing',
+      url: expect.stringMatching(/\/overview$/),
+      el: screen.getByTestId('wujie-host-tianquan-shoubing'),
+      attrs: {src: new URL('/wujie-empty.html', window.location.origin).toString()},
+      degradeAttrs: {title: '身份与安全', style: 'display:block;width:100%;height:100%;border:0;box-shadow:none'},
+      fiber: false,
+      sync: false,
+    }))
+    expect(screen.getByTestId('wujie-host-tianquan-shoubing')).toHaveStyle({
+      height: '100%',
+      minHeight: '0',
+      overflow: 'auto',
+    })
+  })
+
+  it('turns a Core mount rejection into a recoverable mount failure', async () => {
+    vi.mocked(startApp).mockRejectedValueOnce(new Error('sandbox failed'))
+    const onState = vi.fn()
+
+    render(<WujieChild manifest={manifest} context={context} onState={onState} />)
+
+    await waitFor(() => expect(onState).toHaveBeenCalledWith({
+      type: 'MOUNT_FAILED',
+      code: 'CHILD_MOUNT_FAILED',
+      message: 'Child mount rejected',
+    }))
+    expect(screen.getByTestId('wujie-host-tianquan-shoubing')).toBeInTheDocument()
+  })
+
+  it('does not start a sandbox after the mounting effect was cancelled', async () => {
+    const rendered = render(<WujieChild manifest={manifest} context={context} onState={vi.fn()} />)
+    rendered.unmount()
+
+    await Promise.resolve()
+
+    expect(startApp).not.toHaveBeenCalled()
+  })
+
+  it('destroys the Core instance when the host unmounts', async () => {
+    const onState = vi.fn()
+    const rendered = render(<WujieChild manifest={manifest} context={context} onState={onState} />)
+
+    await waitFor(() => expect(onState).toHaveBeenCalledWith({
+      type: 'MOUNTED',
+      cleanupToken: 'tianquan-shoubing:0.0.1',
+    }))
+    rendered.unmount()
+
+    await waitFor(() => expect(onState).toHaveBeenCalledWith({ type: 'CLEANED' }))
+    expect((window as unknown as { __WUJIE_TEST_EVENTS?: string[] }).__WUJIE_TEST_EVENTS)
+      .toContain('afterUnmount')
+  })
+})
+
+
+describe('mounted child route boundary', () => {
+  it('strips query and fragment from route intent before passing the child URL to Wujie', () => {
+    expect(resolveChildUrl('/apps/tianshu/', 'tianshu', '/xingyuan/tianshu/registry?tenant=forged#section'))
+      .toBe(new URL('/apps/tianshu/registry', window.location.href).toString())
+  })
+  it('keeps encoded traversal inside the approved mount by rejecting the suffix', () => {
+    expect(resolveChildUrl('/apps/tianshu/', 'tianshu', '/xingyuan/tianshu/%252e%252e/yuheng/catalog'))
+      .toBe(new URL('/apps/tianshu/', window.location.href).toString())
+  })
+})

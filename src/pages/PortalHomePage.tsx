@@ -1,0 +1,192 @@
+import { useQuery } from '@tanstack/react-query'
+import { Button, Card, Col, Row, Space, Tag, Typography } from 'antd'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  EnterpriseLayout,
+  PageHeader,
+  PageState,
+  type EnterpriseNavigationItem,
+} from '@stellar-enclosure/stellar-enclosure-web-shared'
+import type { PlatformKey } from '../manifest/types'
+import {
+  loadSummary,
+  PLATFORM_KEYS,
+  retrySummary,
+  type PlatformSummaryCard,
+  type SummaryAdapters,
+} from '../summary/platformSummaryFacade'
+
+export interface PortalPlatformItem {
+  readonly key: PlatformKey
+  readonly label: string
+  readonly path: string
+  readonly standaloneUrl: string
+}
+
+const configuredStandaloneUrl = (
+  environmentKey: string,
+  path: string,
+  fallback: string,
+): string => {
+  const configuredOrigin = import.meta.env[environmentKey]
+  return configuredOrigin
+    ? `${configuredOrigin.replace(/\/$/, '')}${path}`
+    : fallback
+}
+
+export const PORTAL_PLATFORM_ITEMS: readonly PortalPlatformItem[] = [
+
+  {
+    key: 'tianquan-shoubing',
+    label: '身份与安全',
+    path: '/xingyuan/tianquan-shoubing/overview',
+    standaloneUrl: configuredStandaloneUrl('VITE_TIANQUAN_SHOUBING_ADMIN_WEB_URL', '/overview', '/tianquan-shoubing/overview'),
+  },
+  {
+    key: 'tianquan-jianshen',
+    label: '权限治理',
+    path: '/xingyuan/tianquan-jianshen/iam/roles',
+    standaloneUrl: configuredStandaloneUrl('VITE_TIANQUAN_JIANSHEN_ADMIN_WEB_URL', '/iam/roles', '/tianquan-jianshen/iam/roles'),
+  },
+  {
+    key: 'yuheng',
+    label: 'API 网关',
+    path: '/xingyuan/yuheng/dashboard',
+    standaloneUrl: configuredStandaloneUrl('VITE_YUHENG_ADMIN_WEB_URL', '/dashboard', '/yuheng/dashboard'),
+  },
+  {
+    key: 'tianshu',
+    label: '配置中心',
+    path: '/xingyuan/tianshu/registry',
+    standaloneUrl: configuredStandaloneUrl('VITE_TIANSHU_ADMIN_WEB_URL', '/registry', '/tianshu/registry'),
+  },
+  {
+    key: 'yaoguang',
+    label: '知识库与 Wiki',
+    path: '/xingyuan/yaoguang/knowledge',
+    standaloneUrl: configuredStandaloneUrl('VITE_YAOGUANG_ADMIN_WEB_URL', '/knowledge', '/yaoguang/knowledge'),
+  },
+]
+
+export interface PortalHomePageProps {
+  readonly adapters?: SummaryAdapters
+  readonly allowedPlatformKeys?: readonly PlatformKey[]
+  readonly scope?: string
+}
+
+const statusLabels: Record<PlatformSummaryCard['status'], string> = {
+  READY: '正常',
+  DEGRADED: '部分可用',
+  ERROR: '加载失败',
+  TIMEOUT: '请求超时',
+  NOT_CONFIGURED: '未配置',
+  DENIED: '无权访问',
+}
+
+const statusColors: Record<PlatformSummaryCard['status'], string> = {
+  READY: 'success',
+  DEGRADED: 'warning',
+  ERROR: 'error',
+  TIMEOUT: 'warning',
+  NOT_CONFIGURED: 'default',
+  DENIED: 'error',
+}
+
+export const navigationFor = (allowedPlatformKeys?: readonly PlatformKey[]): EnterpriseNavigationItem[] => {
+  const allowed = new Set(allowedPlatformKeys ?? PLATFORM_KEYS)
+  return PORTAL_PLATFORM_ITEMS
+    .filter((item) => allowed.has(item.key))
+    .map((item) => ({
+      key: item.key,
+      label: item.label,
+      path: item.path,
+      activePathPrefixes: [`/xingyuan/${item.key}`],
+    }))
+}
+
+export const PortalHomePage = ({
+  adapters = {},
+  allowedPlatformKeys,
+  scope = 'default',
+}: PortalHomePageProps) => {
+  const [retryingKey, setRetryingKey] = useState<PlatformKey | undefined>()
+  const [retryCards, setRetryCards] = useState<Partial<Record<PlatformKey, PlatformSummaryCard>>>({})
+  const summaryQuery = useQuery({
+    queryKey: ['portal-summary', scope],
+    queryFn: ({ signal }) => loadSummary({ scope }, signal, adapters),
+  })
+
+  const visibleKeys = new Set(allowedPlatformKeys ?? PLATFORM_KEYS)
+  const visibleItems = PORTAL_PLATFORM_ITEMS.filter((item) => visibleKeys.has(item.key))
+  const cards = visibleItems.map((item) => retryCards[item.key] ?? summaryQuery.data?.cards[item.key]).filter(
+    (card): card is PlatformSummaryCard => card !== undefined,
+  )
+
+  const handleRetry = async (platformKey: PlatformKey): Promise<void> => {
+    setRetryingKey(platformKey)
+    try {
+      const card = await retrySummary(platformKey, { scope }, new AbortController().signal, adapters)
+      setRetryCards((current) => ({ ...current, [platformKey]: card }))
+    } finally {
+      setRetryingKey(undefined)
+    }
+  }
+
+  const config = {
+    platformName: 'Stellar Enclosure',
+    navigation: navigationFor(allowedPlatformKeys),
+    footer: { version: '0.0.1' },
+  }
+
+  return (
+    <EnterpriseLayout config={config}>
+      <PageHeader
+        title="平台工作台"
+        subtitle="统一查看身份、权限、网关和配置平台状态"
+      />
+      <PageState
+        loading={summaryQuery.isPending}
+        error={summaryQuery.error}
+        empty={false}
+        onRetry={() => { void summaryQuery.refetch() }}
+      >
+        <Row gutter={[16, 16]}>
+          {cards.map((card) => {
+            const item = PORTAL_PLATFORM_ITEMS.find((candidate) => candidate.key === card.platformKey)
+            if (!item) return null
+            return (
+              <Col key={card.platformKey} xs={24} sm={12} xl={6}>
+                <Card
+                  title={card.label}
+                  extra={<Tag color={statusColors[card.status]}>{statusLabels[card.status]}</Tag>}
+                  styles={{ body: { minHeight: 132 } }}
+                >
+                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    <Typography.Text type="secondary">
+                      {card.summary ?? card.message ?? statusLabels[card.status]}
+                    </Typography.Text>
+                    <Space wrap>
+                      <Link to={item.path}>进入平台</Link>
+                      <a href={item.standaloneUrl}>独立打开 {item.label}</a>
+                      {card.status !== 'READY' && card.status !== 'NOT_CONFIGURED' && (
+                        <Button
+                          type="link"
+                          size="small"
+                          loading={retryingKey === card.platformKey}
+                          onClick={() => { void handleRetry(card.platformKey) }}
+                        >
+                          重试
+                        </Button>
+                      )}
+                    </Space>
+                  </Space>
+                </Card>
+              </Col>
+            )
+          })}
+        </Row>
+      </PageState>
+    </EnterpriseLayout>
+  )
+}

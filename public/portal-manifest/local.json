@@ -1,0 +1,62 @@
+{
+  "tianquan-shoubing": {
+    "key": "tianquan-shoubing",
+    "displayName": "tianquan-shoubing",
+    "url": "/apps/tianquan-shoubing/",
+    "standaloneUrl": "/apps/tianquan-shoubing/overview",
+    "version": "0.0.1",
+    "contractVersion": "xingyuan-1",
+    "compatibleHostRange": ">=0.0.1 <0.1.0",
+    "requiredCapabilities": [
+      "tianquan-shoubing:read"
+    ]
+  },
+  "tianquan-jianshen": {
+    "key": "tianquan-jianshen",
+    "displayName": "tianquan-jianshen",
+    "url": "/apps/tianquan-jianshen/",
+    "standaloneUrl": "/apps/tianquan-jianshen/iam/roles",
+    "version": "0.0.1",
+    "contractVersion": "xingyuan-1",
+    "compatibleHostRange": ">=0.0.1 <0.1.0",
+    "requiredCapabilities": [
+      "tianquan-jianshen:read"
+    ]
+  },
+  "yuheng": {
+    "key": "yuheng",
+    "displayName": "yuheng",
+    "url": "/apps/yuheng/",
+    "standaloneUrl": "/apps/yuheng/dashboard",
+    "version": "0.0.1",
+    "contractVersion": "xingyuan-1",
+    "compatibleHostRange": ">=0.0.1 <0.1.0",
+    "requiredCapabilities": [
+      "yuheng:read"
+    ]
+  },
+  "tianshu": {
+    "key": "tianshu",
+    "displayName": "tianshu",
+    "url": "/apps/tianshu/",
+    "standaloneUrl": "/apps/tianshu/registry",
+    "version": "0.0.1",
+    "contractVersion": "xingyuan-1",
+    "compatibleHostRange": ">=0.0.1 <0.1.0",
+    "requiredCapabilities": [
+      "tianshu:read"
+    ]
+  },
+  "yaoguang": {
+    "key": "yaoguang",
+    "displayName": "yaoguang",
+    "url": "/apps/yaoguang/",
+    "standaloneUrl": "/apps/yaoguang/knowledge",
+    "version": "0.0.1",
+    "contractVersion": "xingyuan-1",
+    "compatibleHostRange": ">=0.0.1 <0.1.0",
+    "requiredCapabilities": [
+      "yuheng:knowledge:read"
+    ]
+  }
+}
