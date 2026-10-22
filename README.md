@@ -1,6 +1,15 @@
 # portal
 
-Stellar Enclosure frontend. All first-party modules start at **0.0.1**.
+Unified browser entry point for the five Stellar Enclosure platform consoles. All first-party modules start at **0.0.1**.
+
+## Current capabilities
+
+- Render shared enterprise navigation and mount independent consoles through Wujie under `/xingyuan/:platformKey/*`, with a standalone fallback entry for each application.
+- Validate deployment-owned manifests, child entry URLs, contract versions and host compatibility before mounting; pass the permitted host context and manage child teardown during navigation.
+- Use Edge BFF sessions and platform capabilities to guard access. The portal consumes the shared Web SDK; individual consoles and backends own their business pages and authorization decisions.
+- Include a platform-summary facade/component with timeout, partial-failure and retry states. Summary adapters are optional and report `NOT_CONFIGURED` when absent; the current root route redirects to the first child entry.
+
+The implementation entry points are [routing](src/app/router.tsx), [platform navigation](src/pages/PortalHomePage.tsx), [manifest validation](src/manifest/loader.ts), [host/child context](src/bridge/context.ts) and the [summary facade](src/summary/platformSummaryFacade.ts). The portal does not implement platform business APIs or deploy child applications itself.
 
 ## Build and test
 
@@ -26,7 +35,15 @@ The verifier uses actual pack checksums and official registry addresses in the c
 
 ## Child applications
 
-Five guarded child entries are supported, including Yaoguang at `/xingyuan/yaoguang/knowledge`. `public/portal-manifest/local.json` provides the 0.0.1 same-origin mapping. Deploy each child at `/apps/<business>/` using `VITE_BASE_PATH`, or supply a deployment-owned manifest with the same validation rules. Missing summary adapters remain explicitly unconfigured.
+| Console | Portal entry | Owned functionality |
+|---|---|---|
+| [Shoubing](https://github.com/Stellar-Enclosure/tianquan-shoubing-web) | `/xingyuan/tianquan-shoubing/overview` | Identity, tenants, OAuth clients, resource grants, keys and audit. |
+| [Jianshen](https://github.com/Stellar-Enclosure/tianquan-jianshen-web) | `/xingyuan/tianquan-jianshen/iam/roles` | IAM directory, role/permission governance and authorization runtime. |
+| [Yuheng](https://github.com/Stellar-Enclosure/yuheng-web) | `/xingyuan/yuheng/dashboard` | Gateway management, API catalog, releases, MCP and LLM configuration. |
+| [Tianshu](https://github.com/Stellar-Enclosure/tianshu-web) | `/xingyuan/tianshu/registry` | Service registry, configuration, scope metadata and Prompt/Skill management. |
+| [Yaoguang](https://github.com/Stellar-Enclosure/yaoguang-web) | `/xingyuan/yaoguang/knowledge` | Knowledge bases, documents, retrieval answers and Wiki. |
+
+[Local manifest](public/portal-manifest/local.json) provides the 0.0.1 same-origin mapping. Deploy each child at `/apps/<business>/` using `VITE_BASE_PATH`, or supply a deployment-owned manifest with the same validation rules. A successful portal build does not prove that child assets, BFF sessions or their backend APIs are available.
 
 ## Application delivery (no package publication)
 
