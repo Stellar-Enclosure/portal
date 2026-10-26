@@ -6,13 +6,13 @@ import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from 'vitest
 import {PortalLayout} from './PortalLayout'
 import {PortalRouter} from './router'
 
-const auth = vi.hoisted(() => ({userInfo: vi.fn(), login: vi.fn(), logout: vi.fn()}))
+const auth = vi.hoisted(() => ({identity: vi.fn(), login: vi.fn(), logout: vi.fn()}))
 vi.mock('../auth/portalAuth', () => ({portalAuth: auth}))
 
 beforeAll(async () => {await initI18n({lng: 'zh-CN', resources: {'zh-CN': {}}})})
 beforeEach(() => {
   window.sessionStorage.clear()
-  auth.userInfo.mockReset().mockResolvedValue({authenticated: false})
+  auth.identity.mockReset().mockRejectedValue(new Error('Not authenticated'))
   auth.login.mockReset()
   auth.logout.mockReset().mockResolvedValue({remoteState: 'CONFIRMED'})
 })
@@ -42,9 +42,8 @@ describe('Portal shell', () => {
     expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
   })
 
-  it('shows the verified BFF identity and persists only the logout outcome across reload', async () => {
-    auth.userInfo.mockResolvedValue({
-      authenticated: true,
+  it('shows the verified application identity and persists only the logout outcome across reload', async () => {
+    auth.identity.mockResolvedValue({
       tenantId: '123',
       subject: '42',
       displayName: 'Alice',
@@ -53,13 +52,13 @@ describe('Portal shell', () => {
     const first = renderPortal()
     await screen.findByText('42')
     fireEvent.click(screen.getByRole('button', {name: /用户菜单|User Menu/}))
-    fireEvent.click(await screen.findByRole('menuitem', {name: /退出登录/}))
+    fireEvent.click(await screen.findByRole('menuitem', {name: /退出当前门户/}))
     await waitFor(() => expect(auth.logout).toHaveBeenCalledOnce())
     await waitFor(() => expect(window.sessionStorage.getItem('egon.portal.logout.remote-state'))
       .toBe('PENDING'))
     first.unmount()
 
-    auth.userInfo.mockResolvedValue({authenticated: false})
+    auth.identity.mockRejectedValue(new Error('Not authenticated'))
     renderPortal()
     expect(await screen.findByText('本地已退出，远端令牌撤销待恢复。')).toBeInTheDocument()
   })
@@ -81,7 +80,7 @@ describe('Portal shell', () => {
 describe('fixed deployment registration', () => {
   it('passes the configured alias to the installed client without tenant or issuer selectors', async () => {
     const navigate = vi.fn()
-    vi.stubEnv('VITE_OAUTH_REGISTRATION_ID', 'edge-deployment-child')
+    vi.stubEnv('VITE_OAUTH_APP_ALIAS', 'edge-deployment-child')
     vi.stubEnv('VITE_YUHENG_ORIGIN', '')
     vi.resetModules()
     vi.doUnmock('../auth/portalAuth')
@@ -93,10 +92,8 @@ describe('fixed deployment registration', () => {
     try {
       const {portalAuth: configured} = await import('../auth/portalAuth')
       configured.login()
-      configured.stepUp()
-      expect(navigate.mock.calls[0]?.[0]).toBe('/oauth2/authorization/edge-deployment-child')
-      expect(String(navigate.mock.calls[1]?.[0]).split('?')[0]).toBe('/oauth2/authorization/edge-deployment-child')
-      expect(String(navigate.mock.calls[1]?.[0])).not.toMatch(/tenant|issuer|resource/)
+      expect(navigate.mock.calls[0]?.[0]).toBe('/apps/edge-deployment-child/auth/login')
+      expect(String(navigate.mock.calls[0]?.[0])).not.toMatch(/tenant|issuer|resource/)
     } finally {
       vi.doUnmock('@stellar-enclosure/stellar-enclosure-web-shared')
       vi.unstubAllEnvs()

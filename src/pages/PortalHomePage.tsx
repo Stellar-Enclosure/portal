@@ -1,3 +1,4 @@
+import {resources} from '../permissions/resources'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Col, Row, Space, Tag, Typography } from 'antd'
 import { useState } from 'react'
@@ -18,6 +19,7 @@ import {
 } from '../summary/platformSummaryFacade'
 
 export interface PortalPlatformItem {
+  readonly resourceKey: (typeof resources)[number]['key']
   readonly key: PlatformKey
   readonly label: string
   readonly path: string
@@ -38,30 +40,35 @@ const configuredStandaloneUrl = (
 export const PORTAL_PLATFORM_ITEMS: readonly PortalPlatformItem[] = [
 
   {
+    resourceKey: 'portal.menu.tianquan-shoubing',
     key: 'tianquan-shoubing',
     label: '身份与安全',
     path: '/xingyuan/tianquan-shoubing/overview',
     standaloneUrl: configuredStandaloneUrl('VITE_TIANQUAN_SHOUBING_ADMIN_WEB_URL', '/overview', '/tianquan-shoubing/overview'),
   },
   {
+    resourceKey: 'portal.menu.tianquan-jianshen',
     key: 'tianquan-jianshen',
     label: '权限治理',
     path: '/xingyuan/tianquan-jianshen/iam/roles',
     standaloneUrl: configuredStandaloneUrl('VITE_TIANQUAN_JIANSHEN_ADMIN_WEB_URL', '/iam/roles', '/tianquan-jianshen/iam/roles'),
   },
   {
+    resourceKey: 'portal.menu.yuheng',
     key: 'yuheng',
     label: 'API 网关',
     path: '/xingyuan/yuheng/dashboard',
     standaloneUrl: configuredStandaloneUrl('VITE_YUHENG_ADMIN_WEB_URL', '/dashboard', '/yuheng/dashboard'),
   },
   {
+    resourceKey: 'portal.menu.tianshu',
     key: 'tianshu',
     label: '配置中心',
     path: '/xingyuan/tianshu/registry',
     standaloneUrl: configuredStandaloneUrl('VITE_TIANSHU_ADMIN_WEB_URL', '/registry', '/tianshu/registry'),
   },
   {
+    resourceKey: 'portal.menu.yaoguang',
     key: 'yaoguang',
     label: '知识库与 Wiki',
     path: '/xingyuan/yaoguang/knowledge',
@@ -96,7 +103,7 @@ const statusColors: Record<PlatformSummaryCard['status'], string> = {
 export const navigationFor = (allowedPlatformKeys?: readonly PlatformKey[]): EnterpriseNavigationItem[] => {
   const allowed = new Set(allowedPlatformKeys ?? PLATFORM_KEYS)
   return PORTAL_PLATFORM_ITEMS
-    .filter((item) => allowed.has(item.key))
+    .filter((item) => allowed.has(item.key) && resources.some(resource => resource.key === item.resourceKey && resource.access === 'PUBLIC'))
     .map((item) => ({
       key: item.key,
       label: item.label,

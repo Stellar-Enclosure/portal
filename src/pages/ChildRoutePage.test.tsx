@@ -6,7 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { startApp } from 'wujie'
 import { ChildRoutePage } from './ChildRoutePage'
 
-vi.mock('../auth/portalAuth', () => ({portalAuth: {userInfo: async () => null}}))
+vi.mock('../auth/portalAuth', () => ({portalAuth: {identity: async () => {throw new Error('Not authenticated')}}}))
 
 const manifest = (overrides: Record<string, unknown> = {}) => ({
   key: 'yuheng',

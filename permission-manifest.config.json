@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "application": {
+    "businessCode": "xingyuan",
+    "applicationCode": "portal"
+  },
+  "producerId": "portal-web",
+  "ownedKeyPrefixes": [
+    "portal."
+  ],
+  "expectedModules": [
+    "shell"
+  ],
+  "modules": {
+    "shell": {
+      "entryPoints": [
+        "src/permissions/permissions.ts",
+        "src/permissions/resources.ts"
+      ]
+    }
+  },
+  "artifact": {
+    "repository": "portal",
+    "commit": "f82568ac730c57cc2e7b7f23e8b312a30429a602",
+    "buildId": "local-source",
+    "version": "0.0.1"
+  },
+  "tsconfig": "tsconfig.json",
+  "toolchainLock": "permission-toolchain.lock.json"
+}

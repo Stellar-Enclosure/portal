@@ -1,10 +1,18 @@
+import {resolve} from 'node:path'
+import {pathToFileURL} from 'node:url'
 import {loadEnv} from 'vite'
 import { resolve as resolvePath } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 import {egonFaviconPlugin} from '@stellar-enclosure/stellar-enclosure-web-shared/vite-plugin'
 
-export default defineConfig(({mode}) => {
+export default defineConfig(async ({mode, command}) => {
+  const permissionPlugins: import('vite').PluginOption[] = []
+  if (command === 'build') {
+    if (!process.env.PAC_SDK_DIR) throw new Error('PAC_SDK_DIR_REQUIRED')
+    const plugin = await import(pathToFileURL(resolve(process.env.PAC_SDK_DIR, 'scripts/permissions/consumer-vite-plugin.mjs')).href)
+    permissionPlugins.push(plugin.permissionBuildPlugin())
+  }
   const configuredBase = loadEnv(mode, process.cwd(), 'VITE_').VITE_BASE_PATH ?? '/'
   if (!configuredBase.startsWith('/') || configuredBase.startsWith('//')
     || /[\\?#%]/.test(configuredBase) || Array.from(configuredBase).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) || /\/{2,}/.test(configuredBase)
@@ -15,7 +23,7 @@ export default defineConfig(({mode}) => {
 
   return {
     base: basePath,
-    plugins: [react(), egonFaviconPlugin()],
+    plugins: [react(), egonFaviconPlugin(), ...permissionPlugins],
     publicDir: process.env.PORTAL_PUBLIC_DIR ?? 'public',
     resolve: {
       alias: {
@@ -35,15 +43,7 @@ export default defineConfig(({mode}) => {
       port: 18125,
       strictPort: true,
       proxy: {
-        '/oauth2': {
-          target: process.env.PORTAL_AUTH_PROXY ?? 'http://127.0.0.1:18180',
-          changeOrigin: false,
-        },
-        '/bff': {
-          target: process.env.PORTAL_AUTH_PROXY ?? 'http://127.0.0.1:18180',
-          changeOrigin: false,
-        },
-        '/login/oauth2': {
+        '/apps': {
           target: process.env.PORTAL_AUTH_PROXY ?? 'http://127.0.0.1:18180',
           changeOrigin: false,
         },
