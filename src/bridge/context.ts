@@ -8,18 +8,25 @@ export type SafeValue =
   | SafeValue[]
   | { readonly [key: string]: SafeValue }
 
+export interface ChildResourceContext {
+  readonly issuer: string
+  readonly tenantId: string
+  readonly resource: string
+}
+
 export interface ChildContext {
   readonly platformKey: PlatformKey
   readonly routeIntent?: string
   readonly scopeDisplay?: string
   readonly capabilitySummary?: { readonly [key: string]: SafeValue }
   readonly hostVersion?: string
+  readonly resourceContext?: ChildResourceContext
 }
 
 const sensitiveKey = /token|secret|cookie|authorization|password|raw.?body|header/i
 
 const isPlatformKey = (value: unknown): value is PlatformKey => (
-  value === 'tianquan-shoubing' || value === 'tianquan-jianshen' || value === 'yuheng' || value === 'tianshu'
+  value === 'tianquan-shoubing' || value === 'tianquan-jianshen' || value === 'yuheng' || value === 'tianshu' || value === 'yaoguang'
 )
 
 const sanitizeValue = (value: unknown, key?: string): SafeValue | undefined => {
@@ -47,6 +54,14 @@ const sanitizeValue = (value: unknown, key?: string): SafeValue | undefined => {
   return undefined
 }
 
+const isCanonicalHttps = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !value.startsWith('https://') || value.length > 2048) return false
+  try {
+    const url = new URL(value)
+    return !url.username && !url.password && !url.hash && !url.search && (url.href === value || url.origin === value)
+  } catch { return false }
+}
+
 export const sanitizeChildContext = (source: Record<string, unknown>): ChildContext => {
   if (!isPlatformKey(source.platformKey)) {
     throw new Error('Invalid child xingyuan key')
@@ -60,6 +75,12 @@ export const sanitizeChildContext = (source: Record<string, unknown>): ChildCont
     }
   })
 
+  if (source.resourceContext && typeof source.resourceContext === 'object') {
+    const {issuer, tenantId, resource} = source.resourceContext as Record<string, unknown>
+    if (isCanonicalHttps(issuer) && isCanonicalHttps(resource) && typeof tenantId === 'string' && /^[1-9][0-9]{0,18}$/.test(tenantId)) {
+      mutable.resourceContext = {issuer, tenantId, resource}
+    }
+  }
   const capabilitySummary = sanitizeValue(source.capabilitySummary)
   if (capabilitySummary && typeof capabilitySummary === 'object' && !Array.isArray(capabilitySummary)) {
     mutable.capabilitySummary = capabilitySummary as { readonly [key: string]: SafeValue }

@@ -6,11 +6,15 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { startApp } from 'wujie'
 import { ChildRoutePage } from './ChildRoutePage'
 
-vi.mock('../auth/portalAuth', () => ({portalAuth: {identity: async () => {throw new Error('Not authenticated')}}}))
+const state = vi.hoisted(() => ({ get: vi.fn() }))
+vi.mock('../auth/portalAuth', () => ({portalAuth: {}, usePortalSession: () => state.get()}))
+const signedIdentity = {issuer: 'https://identity.example/tenants/101', tenantId: '101', subject: 'person',
+  resource: 'https://resources.example.invalid/portal', clientId: 'portal-user', accessExpiresAt: 42}
 
 const manifest = (overrides: Record<string, unknown> = {}) => ({
   key: 'yuheng',
   displayName: 'API 网关',
+  resource: 'https://resources.example.invalid/yuheng',
   url: '/children/yuheng/',
   standaloneUrl: '/yuheng/dashboard',
   version: '0.0.1',
@@ -50,6 +54,8 @@ afterEach(() => {
 })
 
 beforeEach(() => {
+  state.get.mockReturnValue({identity: signedIdentity, tenants: ['101'], tenantId: '101', epoch: 1, pending: false})
+  vi.clearAllMocks()
   const testWindow = window as unknown as Record<string, unknown>
   delete testWindow.__WUJIE_TEST_EVENTS
   delete testWindow.__WUJIE_TEST_TRIGGER_LOAD_ERROR
@@ -69,7 +75,25 @@ describe('ChildRoutePage', () => {
     expect(screen.getByTestId('wujie-host-yuheng').closest('.portal-child-stage')).not.toBeNull()
     expect(vi.mocked(startApp)).toHaveBeenCalledWith(expect.objectContaining({
       url: expect.stringMatching(/\/dashboard$/),
+      props: expect.objectContaining({resourceContext: {issuer: signedIdentity.issuer, tenantId: '101', resource: manifest().resource}}),
     }))
+  })
+
+  it('keeps the independent entry available before host login, with no embedded runtime or manifest request', async () => {
+    state.get.mockReturnValue({tenants: ['101'], tenantId: '101', epoch: 0, pending: false})
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    renderRoute()
+    expect(await screen.findByRole('link', {name: '独立打开'})).toHaveAttribute('href', '/yuheng/dashboard')
+    expect(startApp).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a forged Resource before mounting a trusted HTML entry', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(manifest({resource: signedIdentity.resource}))))
+    renderRoute()
+    expect(await screen.findByText(/子应用资源未获部署批准/)).toBeInTheDocument()
+    expect(startApp).not.toHaveBeenCalled()
   })
 
   it('does not mount an incompatible child and offers its standalone entry', async () => {

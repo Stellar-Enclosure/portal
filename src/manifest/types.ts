@@ -3,6 +3,7 @@ export type PlatformKey = 'tianquan-shoubing' | 'tianquan-jianshen' | 'yuheng' |
 export interface ChildManifest {
   key: PlatformKey
   displayName: string
+  resource: string
   url: string
   standaloneUrl: string
   version: string
@@ -18,4 +19,5 @@ export type ManifestErrorCode =
   | 'MANIFEST_FETCH_FAILED'
   | 'MANIFEST_INVALID'
   | 'MANIFEST_URL_NOT_ALLOWED'
+  | 'MANIFEST_RESOURCE_NOT_ALLOWED'
   | 'MANIFEST_VERSION_UNSUPPORTED'

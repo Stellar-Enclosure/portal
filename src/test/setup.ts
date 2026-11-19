@@ -1,6 +1,13 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
+import localManifest from '../../public/portal-manifest/local.json'
+
+beforeEach(() => {
+  const bindings = Object.fromEntries(Object.entries(localManifest).map(([key, {resource, url, standaloneUrl}]) =>
+    [key, {resource, url, standaloneUrl}]))
+  vi.stubEnv('VITE_PORTAL_CHILD_BINDINGS', JSON.stringify(bindings))
+})
 
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class ResizeObserver {

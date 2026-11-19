@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react'
 import { Alert } from 'antd'
 import type { ChildContext } from '../bridge/context'
 import { buildChildProps } from '../bridge/context'
-import { PORTAL_HOST_VERSION, validateChildUrl } from '../manifest/loader'
+import { PORTAL_HOST_VERSION, validateChildResource, validateChildUrl } from '../manifest/loader'
 import type { ChildManifest } from '../manifest/types'
 import type { LifecycleEvent } from './lifecycleState'
 
@@ -91,20 +91,17 @@ class ChildErrorBoundary extends Component<ChildErrorBoundaryProps, ChildErrorBo
   }
 }
 
+let nextMount = 0
+
 export const WujieChild = ({ manifest, context, onState }: WujieChildProps) => {
   const hostRef = useRef<HTMLDivElement>(null)
   const destroyRef = useRef<(() => unknown) | undefined>(undefined)
-  const safeProps = {
-    ...buildChildProps({
-      ...context,
-      platformKey: manifest.key,
-      hostVersion: context.hostVersion ?? PORTAL_HOST_VERSION,
-    }),
-    // This is a presentation-only lifecycle flag; credentials stay child-owned.
-    embedded: true as const,
-  }
-
+  const currentMount = useRef<string | undefined>(undefined)
+  const {routeIntent, resourceContext, scopeDisplay, hostVersion} = context
+  const {issuer, tenantId, resource} = resourceContext ?? {}
   useEffect(() => {
+    const instanceName = `${manifest.key}-${++nextMount}`
+    currentMount.current = instanceName
     const host = hostRef.current
     if (!host) {
       onState({
@@ -115,26 +112,53 @@ export const WujieChild = ({ manifest, context, onState }: WujieChildProps) => {
       return
     }
 
+    if (!issuer || !tenantId || resource !== manifest.resource) {
+      onState({type: 'MOUNT_FAILED', code: 'CHILD_RESOURCE_NOT_ALLOWED', message: 'Child Resource does not match Portal context'})
+      return
+    }
+    try { validateChildResource(manifest.key, resource) } catch {
+      onState({type: 'MOUNT_FAILED', code: 'CHILD_RESOURCE_NOT_ALLOWED', message: 'Child Resource is not approved for this entry'})
+      return
+    }
+    const safeProps = {...buildChildProps({platformKey: manifest.key, routeIntent, scopeDisplay,
+      hostVersion: hostVersion ?? PORTAL_HOST_VERSION, resourceContext: {issuer, tenantId, resource}}), embedded: true as const}
+    if (!safeProps.resourceContext) {
+      onState({type: 'MOUNT_FAILED', code: 'CHILD_RESOURCE_NOT_ALLOWED', message: 'Child Resource context is invalid'})
+      return
+    }
+    const requests = new AbortController()
     let disposed = false
     let cleanupReported = false
     const reportCleaned = (): void => {
-      if (cleanupReported) return
+      if (cleanupReported || currentMount.current !== instanceName) return
       cleanupReported = true
       onState({ type: 'CLEANED' })
     }
-    const reportUnmount = (): void => onState({ type: 'UNMOUNT' })
+    const reportUnmount = (): void => { if (currentMount.current === instanceName) onState({ type: 'UNMOUNT' }) }
+    const destroyMount = (destroy: () => unknown) => {
+      void Promise.resolve().then(destroy).then(reportCleaned, reportCleaned)
+    }
 
     let childUrl: string
-    try { childUrl = resolveChildUrl(manifest.url, manifest.key, context.routeIntent) } catch {
+    try { childUrl = resolveChildUrl(manifest.url, manifest.key, routeIntent) } catch {
       onState({type: 'MOUNT_FAILED', code: 'CHILD_URL_NOT_ALLOWED', message: 'Child mount URL is not allowed'})
       return
     }
+    const mount = document.createElement('div')
+    mount.style.height = '100%'
+    host.append(mount)
     onState({ type: 'LOAD' })
     // A cancelled StrictMode effect must not create a sandbox that the next mount replaces while loading.
     void Promise.resolve().then(() => disposed ? undefined : startApp({
-      name: manifest.key,
+      name: instanceName,
+      fetch: (input, init) => {
+        const upstream = init?.signal ?? (typeof input === 'string' ? undefined : input.signal)
+        const signal = upstream ? AbortSignal.any([upstream, requests.signal]) : requests.signal
+        signal.throwIfAborted()
+        return globalThis.fetch(input, {...init, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal})
+      },
       url: childUrl,
-      el: host,
+      el: mount,
       attrs: {src: new URL(`${import.meta.env.BASE_URL}wujie-empty.html`, window.location.origin).toString()},
       degradeAttrs: {title: manifest.displayName, style: 'display:block;width:100%;height:100%;border:0;box-shadow:none'},
       sync: false,
@@ -151,17 +175,12 @@ export const WujieChild = ({ manifest, context, onState }: WujieChildProps) => {
         .ant-layout-content { min-height: 0; }
       `}]}],
       props: safeProps,
-      afterMount: () => onState({
-        type: 'MOUNTED',
-        cleanupToken: `${manifest.key}:${manifest.version}`,
-      }),
+      afterMount: () => { if (!disposed) onState({type: 'MOUNTED', cleanupToken: instanceName}) },
       beforeUnmount: reportUnmount,
       afterUnmount: reportCleaned,
-      loadError: () => onState({
-        type: 'MOUNT_FAILED',
-        code: 'CHILD_LOAD_ERROR',
-        message: 'Child asset failed to load',
-      }),
+      loadError: () => {
+        if (!disposed) onState({type: 'MOUNT_FAILED', code: 'CHILD_LOAD_ERROR', message: 'Child asset failed to load'})
+      },
     }))
       .then((destroy) => {
         const destroyFunction = typeof destroy === 'function'
@@ -169,7 +188,7 @@ export const WujieChild = ({ manifest, context, onState }: WujieChildProps) => {
           : undefined
         if (disposed) {
           if (destroyFunction) {
-            void Promise.resolve(destroyFunction()).finally(reportCleaned)
+            destroyMount(destroyFunction)
           } else {
             reportCleaned()
           }
@@ -189,10 +208,12 @@ export const WujieChild = ({ manifest, context, onState }: WujieChildProps) => {
 
     return () => {
       disposed = true
+      requests.abort()
+      mount.remove()
       const destroy = destroyRef.current
       destroyRef.current = undefined
       if (destroy) {
-        void Promise.resolve(destroy()).finally(reportCleaned)
+        destroyMount(destroy)
       } else {
         reportUnmount()
         reportCleaned()
@@ -200,7 +221,7 @@ export const WujieChild = ({ manifest, context, onState }: WujieChildProps) => {
     }
     // The host must not remount when the parent reducer records LOAD/MOUNTED.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context.routeIntent, manifest.key, manifest.url, manifest.version])
+  }, [routeIntent, issuer, tenantId, resource, scopeDisplay, hostVersion, manifest.key, manifest.url, manifest.resource, manifest.version, manifest.displayName])
 
   return (
     <ChildErrorBoundary onCrash={() => onState({ type: 'CHILD_CRASHED', message: 'Child render failed' })}>

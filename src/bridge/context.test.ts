@@ -42,6 +42,12 @@ describe('child context bridge', () => {
     })
   })
 
+  it('copies only public Resource selection properties for the knowledge child', () => {
+    const resourceContext = {issuer: 'https://identity.example/tenants/101', tenantId: '101', resource: 'https://resources.example.invalid/yaoguang'}
+    expect(buildChildProps({platformKey: 'yaoguang', resourceContext: {...resourceContext, token: 'secret'}}))
+      .toEqual({platformKey: 'yaoguang', resourceContext})
+  })
+
   it('rejects an unknown xingyuan key instead of forwarding an untrusted value', () => {
     expect(() => sanitizeChildContext({ platformKey: 'unknown' })).toThrow(/xingyuan key/i)
   })

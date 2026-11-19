@@ -10,6 +10,7 @@ import {
   type EnterpriseNavigationItem,
 } from '@stellar-enclosure/stellar-enclosure-web-shared'
 import type { PlatformKey } from '../manifest/types'
+import { standaloneEntry } from '../manifest/loader'
 import {
   loadSummary,
   PLATFORM_KEYS,
@@ -23,18 +24,6 @@ export interface PortalPlatformItem {
   readonly key: PlatformKey
   readonly label: string
   readonly path: string
-  readonly standaloneUrl: string
-}
-
-const configuredStandaloneUrl = (
-  environmentKey: string,
-  path: string,
-  fallback: string,
-): string => {
-  const configuredOrigin = import.meta.env[environmentKey]
-  return configuredOrigin
-    ? `${configuredOrigin.replace(/\/$/, '')}${path}`
-    : fallback
 }
 
 export const PORTAL_PLATFORM_ITEMS: readonly PortalPlatformItem[] = [
@@ -44,35 +33,30 @@ export const PORTAL_PLATFORM_ITEMS: readonly PortalPlatformItem[] = [
     key: 'tianquan-shoubing',
     label: '身份与安全',
     path: '/xingyuan/tianquan-shoubing/overview',
-    standaloneUrl: configuredStandaloneUrl('VITE_TIANQUAN_SHOUBING_ADMIN_WEB_URL', '/overview', '/tianquan-shoubing/overview'),
   },
   {
     resourceKey: 'portal.menu.tianquan-jianshen',
     key: 'tianquan-jianshen',
     label: '权限治理',
     path: '/xingyuan/tianquan-jianshen/iam/roles',
-    standaloneUrl: configuredStandaloneUrl('VITE_TIANQUAN_JIANSHEN_ADMIN_WEB_URL', '/iam/roles', '/tianquan-jianshen/iam/roles'),
   },
   {
     resourceKey: 'portal.menu.yuheng',
     key: 'yuheng',
     label: 'API 网关',
     path: '/xingyuan/yuheng/dashboard',
-    standaloneUrl: configuredStandaloneUrl('VITE_YUHENG_ADMIN_WEB_URL', '/dashboard', '/yuheng/dashboard'),
   },
   {
     resourceKey: 'portal.menu.tianshu',
     key: 'tianshu',
     label: '配置中心',
     path: '/xingyuan/tianshu/registry',
-    standaloneUrl: configuredStandaloneUrl('VITE_TIANSHU_ADMIN_WEB_URL', '/registry', '/tianshu/registry'),
   },
   {
     resourceKey: 'portal.menu.yaoguang',
     key: 'yaoguang',
     label: '知识库与 Wiki',
     path: '/xingyuan/yaoguang/knowledge',
-    standaloneUrl: configuredStandaloneUrl('VITE_YAOGUANG_ADMIN_WEB_URL', '/knowledge', '/yaoguang/knowledge'),
   },
 ]
 
@@ -162,6 +146,7 @@ export const PortalHomePage = ({
           {cards.map((card) => {
             const item = PORTAL_PLATFORM_ITEMS.find((candidate) => candidate.key === card.platformKey)
             if (!item) return null
+            const standaloneUrl = standaloneEntry(item.key)
             return (
               <Col key={card.platformKey} xs={24} sm={12} xl={6}>
                 <Card
@@ -175,7 +160,7 @@ export const PortalHomePage = ({
                     </Typography.Text>
                     <Space wrap>
                       <Link to={item.path}>进入平台</Link>
-                      <a href={item.standaloneUrl}>独立打开 {item.label}</a>
+                      {standaloneUrl && <a href={standaloneUrl}>独立打开 {item.label}</a>}
                       {card.status !== 'READY' && card.status !== 'NOT_CONFIGURED' && (
                         <Button
                           type="link"

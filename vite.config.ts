@@ -43,14 +43,6 @@ export default defineConfig(async ({mode, command}) => {
       port: 18125,
       strictPort: true,
       proxy: {
-        '/apps': {
-          target: process.env.PORTAL_AUTH_PROXY ?? 'http://127.0.0.1:18180',
-          changeOrigin: false,
-        },
-        '/api': {
-          target: process.env.PORTAL_API_PROXY ?? 'http://127.0.0.1:18100',
-          changeOrigin: true,
-        },
         ...(process.env.PORTAL_MANIFEST_PROXY
           ? {
               '/portal-manifest': {

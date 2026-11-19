@@ -1,19 +1,19 @@
 # portal
 
-Unified browser entry point for the five Stellar Enclosure platform consoles. All first-party modules start at **0.0.1**.
+Unified browser entry point for the five Stellar Enclosure platform consoles. Uses the shared Web SDK **0.1.0** and keeps the Portal host manifest contract at **0.0.1**.
 
 ## Current capabilities
 
 - Render shared enterprise navigation and mount independent consoles through Wujie under `/xingyuan/:platformKey/*`, with a standalone fallback entry for each application.
 - Validate deployment-owned manifests, child entry URLs, contract versions and host compatibility before mounting; pass the permitted host context and manage child teardown during navigation.
-- Use Edge BFF sessions and platform capabilities to guard access. The portal consumes the shared Web SDK; individual consoles and backends own their business pages and authorization decisions.
+- Sign in through a tenant PUBLIC OAuth registration with S256 PKCE. Each console manages its own resource authorization and the backend enforces business permissions.
 - Include a platform-summary facade/component with timeout, partial-failure and retry states. Summary adapters are optional and report `NOT_CONFIGURED` when absent; the current root route redirects to the first child entry.
 
 The implementation entry points are [routing](src/app/router.tsx), [platform navigation](src/pages/PortalHomePage.tsx), [manifest validation](src/manifest/loader.ts), [host/child context](src/bridge/context.ts) and the [summary facade](src/summary/platformSummaryFacade.ts). The portal does not implement platform business APIs or deploy child applications itself.
 
 ## Build and test
 
-Requires Node 24 and npm 11. After the SDKs are published:
+Use Node 24 and npm 11 with the matching shared SDK tarball in the cache or registry. For the digest-bound build, set the permission toolchain inputs described below.
 
 ```bash
 npm ci
@@ -28,7 +28,7 @@ node ../web-sdk/scripts/verify-consumers.mjs \
   --workspace "$(cd .. && pwd)" \
   --cache "$HOME/.npm" \
   --output "$(cd ../web-sdk && pwd)/dist/npm-release" \
-  --consumer portal --phase verify --online true
+  --consumer portal --phase verify
 ```
 
 The verifier uses actual pack checksums and official registry addresses in the committed lock, then validates offline installation. It never publishes packages.
@@ -43,7 +43,11 @@ The verifier uses actual pack checksums and official registry addresses in the c
 | [Tianshu](https://github.com/Stellar-Enclosure/tianshu-web) | `/xingyuan/tianshu/registry` | Service registry, configuration, scope metadata and Prompt/Skill management. |
 | [Yaoguang](https://github.com/Stellar-Enclosure/yaoguang-web) | `/xingyuan/yaoguang/knowledge` | Knowledge bases, documents, retrieval answers and Wiki. |
 
-[Local manifest](public/portal-manifest/local.json) provides the 0.0.1 same-origin mapping. Deploy each child at `/apps/<business>/` using `VITE_BASE_PATH`, or supply a deployment-owned manifest with the same validation rules. A successful portal build does not prove that child assets, BFF sessions or their backend APIs are available.
+Deploy each console as static assets on its approved entry URL. Configure the Portal build with `VITE_PORTAL_CHILD_BINDINGS`, a JSON object keyed by the platform keys above. Each value supplies its exact `resource`, `url` for embedding, and `standaloneUrl`. The embedded URL ends with `/` or `/index.html`. Serve the same registration in `${BASE_URL}portal-manifest/<environment>.json`, adding the version range and metadata shown in the [local manifest example](public/portal-manifest/local.json). The example Resource URIs illustrate the shape. Deployment supplies the real approved HTTPS URLs and Resource URIs. `VITE_PORTAL_ENV` selects the manifest environment and defaults to `local`.
+
+Set `VITE_PORTAL_OAUTH_CONFIG` to an object with `activeResource` and `registrations`. Each registration follows the shared `PublicOAuthRegistration` contract and names the host's tenant, issuer, PUBLIC client, Resource, API base, scopes and the fixed issuer endpoints. Register the exact callback `${Portal HTTPS origin}${VITE_BASE_PATH}auth/oidc/callback/${registration.id}`. Configure the Portal static server to serve its SPA for that path and the routes in the table. The Portal reads the identity from the signed callback. The Wujie bridge carries the selected tenant, issuer and child Resource as public context. Every console uses its own registration and starts its own user-authorized flow.
+
+Use an explicit loopback child binding for local development over HTTP. Production child entries and their independent URLs use HTTPS. Provide the IdP and resource CORS and approved routes through the platform deployment.
 
 ## Application delivery (no package publication)
 
@@ -59,7 +63,7 @@ Deploy the resulting `dist/` directory as static application assets. Before the 
 
 ## Compatibility and publication
 
-Java packages/classes, Bean names, configuration keys, OAuth/RPC identities, APIs, and database ownership are retained. Existing SQL and DDL history are copied byte for byte. Artifact/build versions and necessary build paths change. A successful build does not imply application startup or live infrastructure acceptance.
+Validate the login, callback and child CORS with the deployed Portal and registered PUBLIC clients before production cutover. The offline checks cover TypeScript, unit tests, static build and permission artifacts.
 
 Git pushes run validation only. Central and npm publication are separate user actions. CI defaults to initial source bootstrap; after publication set `STELLAR_USE_SOURCE_BOOTSTRAP=false` to consume published artifacts directly. Private organizations may supply the Actions secret `STELLAR_ENCLOSURE_READ_TOKEN` with repository read access.
 

@@ -3,10 +3,10 @@ import { Alert, Button, Result, Space, Spin, Typography } from 'antd'
 import { useEffect, useReducer, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import {PortalLayout} from '../app/PortalLayout'
+import {usePortalSession, type PortalSession} from '../auth/portalAuth'
 import { buildChildProps } from '../bridge/context'
-import { ManifestLoadError, PORTAL_HOST_VERSION, loadManifest } from '../manifest/loader'
+import { ManifestLoadError, PORTAL_HOST_VERSION, loadManifest, standaloneEntry } from '../manifest/loader'
 import type { PlatformKey } from '../manifest/types'
-import { PORTAL_PLATFORM_ITEMS } from './PortalHomePage'
 import { WujieChild } from '../lifecycle/WujieChild'
 import {
   initialLifecycleState,
@@ -22,6 +22,8 @@ const errorCopy = (error: unknown): string => {
     switch (error.code) {
       case 'MANIFEST_VERSION_UNSUPPORTED':
         return '子应用版本不兼容，暂未挂载'
+      case 'MANIFEST_RESOURCE_NOT_ALLOWED':
+        return '子应用资源未获部署批准，暂未挂载'
       case 'MANIFEST_URL_NOT_ALLOWED':
         return '子应用地址不安全，暂未挂载'
       case 'MANIFEST_FETCH_FAILED':
@@ -35,7 +37,7 @@ const errorCopy = (error: unknown): string => {
 
 interface MountFailureProps {
   readonly message: string
-  readonly standaloneUrl: string
+  readonly standaloneUrl?: string
   readonly retryLabel: string
   readonly onRetry: () => void
 }
@@ -48,29 +50,50 @@ const MountFailure = ({ message, standaloneUrl, retryLabel, onRetry }: MountFail
     description={(
       <Space wrap>
         <Button type="primary" size="small" onClick={onRetry}>{retryLabel}</Button>
-        <a href={standaloneUrl}>独立打开</a>
+        {standaloneUrl && <a href={standaloneUrl}>独立打开</a>}
       </Space>
     )}
   />
 )
 
 export const ChildRoutePage = () => {
-  const { platformKey: rawPlatformKey } = useParams()
-  const platformKey = isPlatformKey(rawPlatformKey) ? rawPlatformKey : undefined
-  const location = useLocation()
+  const {platformKey} = useParams()
+  const {pathname} = useLocation()
+  const session = usePortalSession()
+  let child: React.ReactNode
+  if (!isPlatformKey(platformKey)) {
+    child = <Result status="404" title="平台不存在" />
+  } else if (!session.identity || session.pending) {
+    const url = standaloneEntry(platformKey)
+    child = <Result status="info" title="登录后可在门户中打开平台"
+      extra={url && <a href={url}>独立打开</a>} />
+  } else {
+    child = <AuthorizedChild key={`${session.epoch}:${pathname}`} platformKey={platformKey}
+      pathname={pathname} identity={session.identity} epoch={session.epoch} />
+  }
+  return <PortalLayout>{child}</PortalLayout>
+}
+
+interface AuthorizedChildProps {
+  readonly platformKey: PlatformKey
+  readonly pathname: string
+  readonly identity: NonNullable<PortalSession['identity']>
+  readonly epoch: number
+}
+
+const AuthorizedChild = ({platformKey, pathname, identity, epoch}: AuthorizedChildProps) => {
   const environment = import.meta.env.VITE_PORTAL_ENV ?? 'local'
   const [lifecycle, dispatch] = useReducer(
     reduceLifecycle,
-    platformKey ?? 'tianquan-shoubing',
+    platformKey,
     initialLifecycleState,
   )
   const [mountKey, setMountKey] = useState(0)
   const [remounting, setRemounting] = useState(false)
 
   const manifestQuery = useQuery({
-    queryKey: ['portal-manifest', platformKey, environment],
-    enabled: platformKey !== undefined,
-    queryFn: ({ signal }) => loadManifest(platformKey as PlatformKey, environment, signal),
+    queryKey: ['portal-manifest', platformKey, environment, identity.tenantId, epoch],
+    queryFn: ({signal}) => loadManifest(platformKey, environment, signal),
   })
 
   useEffect(() => {
@@ -81,18 +104,14 @@ export const ChildRoutePage = () => {
     setRemounting(false)
   }, [lifecycle.status, remounting])
 
-  const item = PORTAL_PLATFORM_ITEMS.find((candidate) => candidate.key === platformKey)
-
   let content: React.ReactNode
-  if (!platformKey || !item) {
-    content = <Result status="404" title="平台不存在" subTitle="请从左侧平台菜单进入有效的子应用。" />
-  } else if (manifestQuery.isPending) {
+  if (manifestQuery.isPending) {
     content = <Spin description="加载子应用清单" />
   } else if (manifestQuery.error) {
     content = (
       <MountFailure
         message={errorCopy(manifestQuery.error)}
-        standaloneUrl={item.standaloneUrl}
+        standaloneUrl={standaloneEntry(platformKey)}
         retryLabel="重试加载"
         onRetry={() => { void manifestQuery.refetch() }}
       />
@@ -107,8 +126,9 @@ export const ChildRoutePage = () => {
     }
     const safeContext = buildChildProps({
       platformKey,
-      routeIntent: location.pathname,
-      scopeDisplay: 'default',
+      routeIntent: pathname,
+      scopeDisplay: identity.tenantId,
+      resourceContext: { issuer: identity.issuer, tenantId: identity.tenantId, resource: manifestQuery.data.resource },
       hostVersion: PORTAL_HOST_VERSION,
     })
     content = (
@@ -135,9 +155,5 @@ export const ChildRoutePage = () => {
     )
   }
 
-  return (
-    <PortalLayout>
-      {content}
-    </PortalLayout>
-  )
+  return content
 }
