@@ -1,11 +1,14 @@
-import { Result } from 'antd'
+import { Button, Card, Result, Space, Typography } from 'antd'
 import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
-import { PORTAL_CALLBACK_ROUTE, portalAuth } from '../auth/portalAuth'
-import {PortalLayout} from './PortalLayout'
+import { Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { PORTAL_CALLBACK_ROUTE, portalAuth, usePortalSession } from '../auth/portalAuth'
 import { standaloneEntry } from '../manifest/loader'
-import { ChildRoutePage } from '../pages/ChildRoutePage'
-import { PORTAL_PLATFORM_ITEMS } from '../pages/PortalHomePage'
+import { isPlatformKey, type PlatformKey } from '../manifest/types'
+import { AuthorizedChild } from '../pages/ChildRoutePage'
+import { PORTAL_PLATFORM_ITEMS, PortalHomePage } from '../pages/PortalHomePage'
+import { PortalLayout } from './PortalLayout'
+import { WorkbenchNavigationProvider, useOptionalWorkbenchNavigation } from './workbench/WorkbenchTabs'
+import { defaultAppTitle } from './workbench/workbenchRoutes'
 
 const StandaloneRedirectPage = () => {
   const { platformKey } = useParams()
@@ -27,21 +30,157 @@ const OAuthCallbackPage = () => {
   const [failed, setFailed] = useState(false)
   useEffect(() => {
     let current = true
-    void portalAuth.completeRedirect(callback).then(returnTo => {
-      if (current) void navigate(returnTo, {replace: true})
-    }, () => { if (current) setFailed(true) })
-    return () => { current = false }
+    void portalAuth.completeRedirect(callback).then(
+      (returnTo) => {
+        if (current) void navigate(returnTo, { replace: true })
+      },
+      () => {
+        if (current) setFailed(true)
+      },
+    )
+    return () => {
+      current = false
+    }
   }, [callback, navigate])
-  return <PortalLayout><Result status={failed ? 'error' : 'info'}
-    title={failed ? '无法完成登录' : '正在验证登录'} /></PortalLayout>
+  return (
+    <PortalLayout>
+      <Result status={failed ? 'error' : 'info'} title={failed ? '无法完成登录' : '正在验证登录'} />
+    </PortalLayout>
+  )
 }
 
-export const PortalRouter = () => (
-  <Routes>
-    <Route path="/" element={<Navigate to={PORTAL_PLATFORM_ITEMS[0].path} replace />} />
-    <Route path={PORTAL_CALLBACK_ROUTE} element={<OAuthCallbackPage />} />
-    <Route path="/xingyuan/:platformKey/*" element={<ChildRoutePage />} />
-    <Route path="/standalone/:platformKey" element={<StandaloneRedirectPage />} />
-    <Route path="*" element={<Result status="404" title="页面不存在" subTitle="请从左侧平台菜单进入页面。" />} />
-  </Routes>
-)
+const AgentPlaceholderPage = () => {
+  const workbench = useOptionalWorkbenchNavigation()
+  return (
+    <div data-testid="agent-page-placeholder" style={{ padding: 16 }}>
+      <Card title="星垣 Agent 助手">
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Typography.Text type="secondary">
+            当前阶段为全局入口占位，真实知识问答与任务跳转将在后续 Step 23 接入。
+          </Typography.Text>
+          <Space wrap>
+            <Button onClick={() => workbench?.openUrl('/')}>返回门户首页</Button>
+          </Space>
+        </Space>
+      </Card>
+    </div>
+  )
+}
+
+const AppWorkbenchOverview = ({ platformKey }: { readonly platformKey: PlatformKey }) => {
+  const workbench = useOptionalWorkbenchNavigation()
+  const item = PORTAL_PLATFORM_ITEMS.find((entry) => entry.key === platformKey)
+  const catalog = workbench?.catalogs[platformKey]
+  const standaloneUrl = standaloneEntry(platformKey)
+
+  return (
+    <div data-testid={`app-workbench-${platformKey}`} style={{ padding: 16 }}>
+      <Card
+        title={`${item?.appName ?? platformKey} · ${defaultAppTitle(platformKey)}工作台`}
+        extra={standaloneUrl ? <a href={standaloneUrl}>独立打开</a> : undefined}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Typography.Text type="secondary">
+            请从左侧一级分组选择业务页面；点击分组仅展开收起，点击二级页面将全宽打开或复用页签。
+          </Typography.Text>
+          {catalog?.status === 'ready' && catalog.pages.length > 0 ? (
+            <Space wrap>
+              {catalog.pages.slice(0, 6).map((page) => (
+                <Button
+                  key={page.pageId}
+                  onClick={() => workbench?.openUrl(`/xingyuan/${platformKey}${page.pattern}`)}
+                >
+                  {page.label}
+                </Button>
+              ))}
+            </Space>
+          ) : (
+            item && (
+              <Button type="primary" onClick={() => workbench?.openUrl(item.path)}>
+                进入默认业务页
+              </Button>
+            )
+          )}
+        </Space>
+      </Card>
+    </div>
+  )
+}
+
+const WorkbenchStageRouter = () => {
+  const session = usePortalSession()
+  const workbench = useOptionalWorkbenchNavigation()!
+  const resolved = workbench.resolvedLocation
+
+  const activePlatformKey =
+    resolved.kind === 'app-workbench' || resolved.kind === 'app-page' ? resolved.platformKey : undefined
+  const activeRouteIntent =
+    resolved.kind === 'app-workbench' || resolved.kind === 'app-page' ? resolved.canonicalUrl : '/'
+
+  const mountedApps = workbench.mountedApps
+
+  return (
+    <PortalLayout>
+      {resolved.kind === 'home' && <PortalHomePage />}
+      {resolved.kind === 'agent' && <AgentPlaceholderPage />}
+      {resolved.kind === 'app-workbench' && <AppWorkbenchOverview platformKey={resolved.platformKey} />}
+      {resolved.kind === 'not-found' && (
+        <Result status="404" title="页面不存在" subTitle="请从左侧平台菜单进入页面。" />
+      )}
+      {activePlatformKey && (!session.identity || session.pending) && (
+        <Result
+          status="info"
+          title="登录后可在门户中打开平台"
+          extra={standaloneEntry(activePlatformKey) && <a href={standaloneEntry(activePlatformKey)}>独立打开</a>}
+        />
+      )}
+      {session.identity && !session.pending && mountedApps.map((appKey) => {
+        if (!isPlatformKey(appKey)) return null
+        const isCurrentAppPage = resolved.kind === 'app-page' && resolved.platformKey === appKey
+        const isCurrentWorkbench = resolved.kind === 'app-workbench' && resolved.platformKey === appKey
+        const activeTabForApp =
+          workbench.state.tabs.find((tab) => tab.appId === appKey && tab.tabKey === workbench.state.activeTabKey) ??
+          workbench.state.tabs.find((tab) => tab.appId === appKey && !tab.isWorkbench)
+        const targetPath = isCurrentAppPage
+          ? activeRouteIntent
+          : activeTabForApp?.canonicalUrl ?? `/xingyuan/${appKey}/workbench`
+
+        return (
+          <div
+            key={`${session.epoch}:${appKey}`}
+            style={isCurrentAppPage ? { display: 'flex', flex: '1 1 0', minHeight: 0 } : { display: 'none' }}
+            data-workbench-mounted-app={appKey}
+            data-workbench-init-only={isCurrentWorkbench ? 'true' : undefined}
+          >
+            <AuthorizedChild
+              platformKey={appKey}
+              pathname={targetPath}
+              identity={session.identity!}
+              epoch={session.epoch}
+              active={isCurrentAppPage}
+              activeTabKey={isCurrentAppPage ? workbench.state.activeTabKey : undefined}
+              onCatalogUpdate={workbench.reportCatalog}
+              onNavigationRequest={workbench.handleChildNavRequest}
+              onPortReady={workbench.registerPort}
+            />
+          </div>
+        )
+      })}
+    </PortalLayout>
+  )
+}
+
+export const PortalRouter = () => {
+  const existing = useOptionalWorkbenchNavigation()
+  const routes = (
+    <Routes>
+      <Route path={PORTAL_CALLBACK_ROUTE} element={<OAuthCallbackPage />} />
+      <Route path="/standalone/:platformKey" element={<StandaloneRedirectPage />} />
+      <Route path="*" element={<WorkbenchStageRouter />} />
+    </Routes>
+  )
+  if (existing) {
+    return routes
+  }
+  return <WorkbenchNavigationProvider>{routes}</WorkbenchNavigationProvider>
+}

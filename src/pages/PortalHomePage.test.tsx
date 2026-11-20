@@ -59,14 +59,20 @@ describe('PortalHomePage', () => {
     expect(screen.queryByText('API 网关')).not.toBeInTheDocument()
   })
 
-  it('opens the declared Jianshen role route through both Portal entries', async () => {
+  it('renders overview without its own EnterpriseLayout chrome, shows NOT_CONFIGURED copy, and links to APP workbench', async () => {
     renderHome({})
     const roleRoute = jianshenResources.find((resource) => resource.code === 'iam.roles')?.path
     expect(roleRoute).toBeDefined()
     const entry = PORTAL_PLATFORM_ITEMS.find((item) => item.key === 'tianquan-jianshen')!
 
+    // PortalHomePage no longer renders an independent EnterpriseLayout banner/menu
+    expect(screen.queryByRole('navigation', { name: '主菜单' })).not.toBeInTheDocument()
+    expect((await screen.findAllByText('暂无已接入指标')).length).toBeGreaterThan(0)
+
     const standalone = await screen.findByRole('link', { name: '独立打开 权限治理' })
     const card = standalone.closest('.ant-card') as HTMLElement
+    expect(within(card).getByRole('link', { name: '进入工作台' }))
+      .toHaveAttribute('href', '/xingyuan/tianquan-jianshen/workbench')
     expect(within(card).getByRole('link', { name: '进入平台' }))
       .toHaveAttribute('href', `/xingyuan/tianquan-jianshen${roleRoute}`)
     expect(standalone)

@@ -1,10 +1,9 @@
-import {resources} from '../permissions/resources'
+import { resources } from '../permissions/resources'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Col, Row, Space, Tag, Typography } from 'antd'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  EnterpriseLayout,
   PageHeader,
   PageState,
   type EnterpriseNavigationItem,
@@ -22,47 +21,67 @@ import {
 export interface PortalPlatformItem {
   readonly resourceKey: (typeof resources)[number]['key']
   readonly key: PlatformKey
+  readonly appName: string
+  readonly domain: '平台治理' | '身份与权限' | '知识与协作'
   readonly label: string
   readonly path: string
+  readonly workbenchPath: string
 }
 
 export const PORTAL_PLATFORM_ITEMS: readonly PortalPlatformItem[] = [
-
   {
     resourceKey: 'portal.menu.tianquan-shoubing',
     key: 'tianquan-shoubing',
+    appName: '守柄',
+    domain: '身份与权限',
     label: '身份与安全',
     path: '/xingyuan/tianquan-shoubing/overview',
+    workbenchPath: '/xingyuan/tianquan-shoubing/workbench',
   },
   {
     resourceKey: 'portal.menu.tianquan-jianshen',
     key: 'tianquan-jianshen',
+    appName: '剑身',
+    domain: '身份与权限',
     label: '权限治理',
     path: '/xingyuan/tianquan-jianshen/iam/roles',
+    workbenchPath: '/xingyuan/tianquan-jianshen/workbench',
   },
   {
     resourceKey: 'portal.menu.yuheng',
     key: 'yuheng',
+    appName: '玉衡',
+    domain: '平台治理',
     label: 'API 网关',
     path: '/xingyuan/yuheng/dashboard',
+    workbenchPath: '/xingyuan/yuheng/workbench',
   },
   {
     resourceKey: 'portal.menu.tianshu',
     key: 'tianshu',
+    appName: '天枢',
+    domain: '平台治理',
     label: '配置中心',
     path: '/xingyuan/tianshu/registry',
+    workbenchPath: '/xingyuan/tianshu/workbench',
   },
   {
     resourceKey: 'portal.menu.yaoguang',
     key: 'yaoguang',
+    appName: '瑶光',
+    domain: '知识与协作',
     label: '知识库与 Wiki',
     path: '/xingyuan/yaoguang/knowledge',
+    workbenchPath: '/xingyuan/yaoguang/workbench',
   },
   {
     resourceKey: 'portal.menu.tianji',
     key: 'tianji',
+    appName: '天机',
+    domain: '平台治理',
     label: '流程编排',
     path: '/xingyuan/tianji/process-definitions',
+    workbenchPath: '/xingyuan/tianji/workbench',
   },
 ]
 
@@ -93,7 +112,7 @@ const statusColors: Record<PlatformSummaryCard['status'], string> = {
 export const navigationFor = (allowedPlatformKeys?: readonly PlatformKey[]): EnterpriseNavigationItem[] => {
   const allowed = new Set(allowedPlatformKeys ?? PLATFORM_KEYS)
   return PORTAL_PLATFORM_ITEMS
-    .filter((item) => allowed.has(item.key) && resources.some(resource => resource.key === item.resourceKey && resource.access === 'PUBLIC'))
+    .filter((item) => allowed.has(item.key) && resources.some((resource) => resource.key === item.resourceKey && resource.access === 'PUBLIC'))
     .map((item) => ({
       key: item.key,
       label: item.label,
@@ -116,9 +135,9 @@ export const PortalHomePage = ({
 
   const visibleKeys = new Set(allowedPlatformKeys ?? PLATFORM_KEYS)
   const visibleItems = PORTAL_PLATFORM_ITEMS.filter((item) => visibleKeys.has(item.key))
-  const cards = visibleItems.map((item) => retryCards[item.key] ?? summaryQuery.data?.cards[item.key]).filter(
-    (card): card is PlatformSummaryCard => card !== undefined,
-  )
+  const cards = visibleItems
+    .map((item) => retryCards[item.key] ?? summaryQuery.data?.cards[item.key])
+    .filter((card): card is PlatformSummaryCard => card !== undefined)
 
   const handleRetry = async (platformKey: PlatformKey): Promise<void> => {
     setRetryingKey(platformKey)
@@ -130,17 +149,11 @@ export const PortalHomePage = ({
     }
   }
 
-  const config = {
-    platformName: 'Stellar Enclosure',
-    navigation: navigationFor(allowedPlatformKeys),
-    footer: { version: '0.0.1' },
-  }
-
   return (
-    <EnterpriseLayout config={config}>
+    <div className="portal-home-page">
       <PageHeader
         title="平台工作台"
-        subtitle="统一查看身份、权限、网关和配置平台状态"
+        subtitle="统一查看身份、权限、网关、配置、知识与流程平台状态"
       />
       <PageState
         loading={summaryQuery.isPending}
@@ -153,18 +166,20 @@ export const PortalHomePage = ({
             const item = PORTAL_PLATFORM_ITEMS.find((candidate) => candidate.key === card.platformKey)
             if (!item) return null
             const standaloneUrl = standaloneEntry(item.key)
+            const summaryText =
+              card.summary ?? (card.status === 'NOT_CONFIGURED' ? '暂无已接入指标' : card.message ?? statusLabels[card.status])
             return (
-              <Col key={card.platformKey} xs={24} sm={12} xl={6}>
+              <Col key={card.platformKey} xs={24} sm={12} xl={8}>
                 <Card
                   title={card.label}
                   extra={<Tag color={statusColors[card.status]}>{statusLabels[card.status]}</Tag>}
                   styles={{ body: { minHeight: 132 } }}
                 >
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <Typography.Text type="secondary">
-                      {card.summary ?? card.message ?? statusLabels[card.status]}
-                    </Typography.Text>
+                    <Typography.Text type="secondary">{`${item.appName} · ${item.domain}`}</Typography.Text>
+                    <Typography.Text type="secondary">{summaryText}</Typography.Text>
                     <Space wrap>
+                      <Link to={item.workbenchPath}>进入工作台</Link>
                       <Link to={item.path}>进入平台</Link>
                       {standaloneUrl && <a href={standaloneUrl}>独立打开 {item.label}</a>}
                       {card.status !== 'READY' && card.status !== 'NOT_CONFIGURED' && (
@@ -185,6 +200,6 @@ export const PortalHomePage = ({
           })}
         </Row>
       </PageState>
-    </EnterpriseLayout>
+    </div>
   )
 }

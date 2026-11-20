@@ -5,8 +5,12 @@ import {
   AdminThemeProvider,
   AppErrorBoundary,
   I18nProvider,
+  injectTokens,
 } from '@stellar-enclosure/stellar-enclosure-web-shared'
 import { PortalRouter } from './router'
+import { WorkbenchNavigationProvider } from './workbench/WorkbenchTabs'
+
+injectTokens()
 
 const configuredBase: string = import.meta.env.VITE_BASE_PATH ?? '/'
 if (!configuredBase.startsWith('/') || configuredBase.startsWith('//')
@@ -38,7 +42,9 @@ export const App = () => (
       <I18nProvider>
         <BrowserRouter basename={basePath}>
           <PortalErrorBoundary>
-            <PortalRouter />
+            <WorkbenchNavigationProvider>
+              <PortalRouter />
+            </WorkbenchNavigationProvider>
           </PortalErrorBoundary>
         </BrowserRouter>
       </I18nProvider>

@@ -74,7 +74,7 @@ describe('Portal shell', () => {
     const fetch = vi.fn().mockResolvedValueOnce(manifest()).mockReturnValueOnce(delayed).mockResolvedValueOnce(manifest())
     vi.stubGlobal('fetch', fetch)
     mock.read.mockReturnValue(signed)
-    renderPortal(true)
+    renderPortal(true, '/xingyuan/tianquan-shoubing/overview')
     expect(await screen.findByTestId('wujie-host-tianquan-shoubing')).toBeInTheDocument()
     openMenu()
     fireEvent.click(await screen.findByRole('menuitem', {name: /切换到租户 102/}))
@@ -94,6 +94,34 @@ describe('Portal shell', () => {
     change({...anonymous, epoch: 5})
     expect(screen.queryByTestId('wujie-host-tianquan-shoubing')).not.toBeInTheDocument()
     expect(window.sessionStorage.length).toBe(0)
+  })
+
+  it('renders home overview at /, fixed Agent/Home entries, domain-only launcher drawer with Esc focus restore, and workbench vs full-width layouts', async () => {
+    mock.read.mockReturnValue(signed)
+    renderPortal(true, '/')
+
+    // Root '/' renders PortalHomePage overview instead of redirecting into the first APP
+    expect(await screen.findByRole('heading', { name: '平台工作台' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Agent 助手' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '门户首页' })).toBeInTheDocument()
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
+
+    // Launcher drawer searches domains/APPs only and restores focus on Esc
+    const launcherBtn = screen.getByRole('button', { name: '应用目录' })
+    fireEvent.click(launcherBtn)
+    const searchInput = await screen.findByRole('textbox', { name: '搜索应用或业务域' })
+    fireEvent.change(searchInput, { target: { value: '天机' } })
+    expect(screen.getByRole('menuitem', { name: /天机|流程编排/ })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /天枢/ })).not.toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: '搜索应用或业务域' })).not.toBeInTheDocument())
+    expect(launcherBtn).toHaveFocus()
+
+    // Fixed /agent entry stays outside closable tabs
+    fireEvent.click(screen.getByRole('button', { name: 'Agent 助手' }))
+    expect(await screen.findByTestId('agent-page-placeholder')).toBeInTheDocument()
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
   })
 })
 
