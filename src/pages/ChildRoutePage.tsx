@@ -2,8 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Alert, Button, Result, Space, Spin, Typography } from 'antd'
 import { useEffect, useReducer, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
-import {PortalLayout} from '../app/PortalLayout'
-import {usePortalSession, type PortalSession} from '../auth/portalAuth'
+import type { AppCatalogUpdate, RouteRequest, WorkbenchPort } from '@stellar-enclosure/stellar-enclosure-web-shared'
+import { PortalLayout } from '../app/PortalLayout'
+import { usePortalSession, type PortalSession } from '../auth/portalAuth'
 import { buildChildProps } from '../bridge/context'
 import { ManifestLoadError, PORTAL_HOST_VERSION, loadManifest, standaloneEntry } from '../manifest/loader'
 import { isPlatformKey, type PlatformKey } from '../manifest/types'
@@ -53,31 +54,59 @@ const MountFailure = ({ message, standaloneUrl, retryLabel, onRetry }: MountFail
 )
 
 export const ChildRoutePage = () => {
-  const {platformKey} = useParams()
-  const {pathname} = useLocation()
+  const { platformKey } = useParams()
+  const { pathname, search } = useLocation()
   const session = usePortalSession()
+  const routeIntent = `${pathname}${search}`
   let child: React.ReactNode
   if (!isPlatformKey(platformKey)) {
     child = <Result status="404" title="平台不存在" />
   } else if (!session.identity || session.pending) {
     const url = standaloneEntry(platformKey)
-    child = <Result status="info" title="登录后可在门户中打开平台"
-      extra={url && <a href={url}>独立打开</a>} />
+    child = (
+      <Result
+        status="info"
+        title="登录后可在门户中打开平台"
+        extra={url && <a href={url}>独立打开</a>}
+      />
+    )
   } else {
-    child = <AuthorizedChild key={`${session.epoch}:${pathname}`} platformKey={platformKey}
-      pathname={pathname} identity={session.identity} epoch={session.epoch} />
+    child = (
+      <AuthorizedChild
+        key={`${session.epoch}:${platformKey}`}
+        platformKey={platformKey}
+        pathname={routeIntent}
+        identity={session.identity}
+        epoch={session.epoch}
+      />
+    )
   }
   return <PortalLayout>{child}</PortalLayout>
 }
 
-interface AuthorizedChildProps {
+export interface AuthorizedChildProps {
   readonly platformKey: PlatformKey
   readonly pathname: string
   readonly identity: NonNullable<PortalSession['identity']>
   readonly epoch: number
+  readonly active?: boolean
+  readonly activeTabKey?: string
+  readonly onCatalogUpdate?: (platformKey: PlatformKey, update: AppCatalogUpdate) => void
+  readonly onNavigationRequest?: (platformKey: PlatformKey, request: RouteRequest) => void
+  readonly onPortReady?: (platformKey: PlatformKey, port: WorkbenchPort | undefined) => void
 }
 
-const AuthorizedChild = ({platformKey, pathname, identity, epoch}: AuthorizedChildProps) => {
+export const AuthorizedChild = ({
+  platformKey,
+  pathname,
+  identity,
+  epoch,
+  active = true,
+  activeTabKey,
+  onCatalogUpdate,
+  onNavigationRequest,
+  onPortReady,
+}: AuthorizedChildProps) => {
   const environment = import.meta.env.VITE_PORTAL_ENV ?? 'local'
   const [lifecycle, dispatch] = useReducer(
     reduceLifecycle,
@@ -89,7 +118,7 @@ const AuthorizedChild = ({platformKey, pathname, identity, epoch}: AuthorizedChi
 
   const manifestQuery = useQuery({
     queryKey: ['portal-manifest', platformKey, environment, identity.tenantId, epoch],
-    queryFn: ({signal}) => loadManifest(platformKey, environment, signal),
+    queryFn: ({ signal }) => loadManifest(platformKey, environment, signal),
   })
 
   useEffect(() => {
@@ -127,8 +156,12 @@ const AuthorizedChild = ({platformKey, pathname, identity, epoch}: AuthorizedChi
       resourceContext: { issuer: identity.issuer, tenantId: identity.tenantId, resource: manifestQuery.data.resource },
       hostVersion: PORTAL_HOST_VERSION,
     })
+    const instanceKey =
+      manifestQuery.data.contractVersion === 'workbench-1'
+        ? `${manifestQuery.data.key}:${mountKey}`
+        : `${manifestQuery.data.key}:${mountKey}:${pathname}`
     content = (
-      <div className="portal-child-stage">
+      <div className="portal-child-stage" style={active ? undefined : { display: 'none' }}>
         {isFailure && (
           <MountFailure
             message={lifecycle.status === 'CRASHED' ? '子应用运行异常' : '子应用加载失败'}
@@ -140,10 +173,15 @@ const AuthorizedChild = ({platformKey, pathname, identity, epoch}: AuthorizedChi
         {!remounting && (
           <div className="portal-child-mount" style={isFailure ? { display: 'none' } : undefined}>
             <WujieChild
-              key={`${manifestQuery.data.key}:${mountKey}`}
+              key={instanceKey}
               manifest={manifestQuery.data}
               context={safeContext}
+              active={active}
+              activeTabKey={activeTabKey}
               onState={dispatch}
+              onCatalogUpdate={onCatalogUpdate ? (update) => onCatalogUpdate(platformKey, update) : undefined}
+              onNavigationRequest={onNavigationRequest ? (req) => onNavigationRequest(platformKey, req) : undefined}
+              onPortReady={onPortReady ? (port) => onPortReady(platformKey, port) : undefined}
             />
           </div>
         )}

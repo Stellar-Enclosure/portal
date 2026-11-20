@@ -1,6 +1,7 @@
 import {createPublicOAuthClient, type PublicOAuthClientOptions, type PublicOAuthIdentity,
   type PublicOAuthRegistration} from '@stellar-enclosure/stellar-enclosure-web-shared'
 import {useSyncExternalStore} from 'react'
+import {sanitizeReturnTo} from '../app/workbench/workbenchRoutes'
 
 const callbackRoute = 'auth/oidc/callback/'
 export const PORTAL_CALLBACK_ROUTE = '/' + callbackRoute + ':registrationId'
@@ -12,6 +13,7 @@ interface PortalAuthConfig {
 
 export interface PortalSession {
   readonly identity?: PublicOAuthIdentity
+  readonly sessionKey?: string
   readonly tenants: readonly string[]
   readonly tenantId?: string
   readonly epoch: number
@@ -44,8 +46,9 @@ export function createPortalAuth(configText: string | undefined, origin: string,
   const subscribers = new Set<() => void>()
   let completion: { url: string; result: Promise<string> } | undefined
   const publish = (pending: boolean, error?: PortalSession['error']) => {
-    snapshot = { identity: selected ? client?.identity(selected.id) : undefined,
-      tenants, tenantId: selected?.tenantId, epoch: snapshot.epoch + 1, pending, error }
+    const identity = selected ? client?.identity(selected.id) : undefined
+    const sessionKey = identity ? `${identity.issuer}|${identity.subject}|${identity.tenantId}` : undefined
+    snapshot = { identity, sessionKey, tenants, tenantId: selected?.tenantId, epoch: snapshot.epoch + 1, pending, error }
     subscribers.forEach(listener => listener())
   }
   for (const registration of registrations) {
@@ -58,13 +61,14 @@ export function createPortalAuth(configText: string | undefined, origin: string,
     login: async (returnTo: string, tenantId = selected?.tenantId) => {
       const registration = registrations.find(r => r.tenantId === tenantId)
       if (!client || !registration) return
+      const safeReturnTo = sanitizeReturnTo(returnTo)
       const attempt = ++generation
       completion = undefined
       selected = registration
       try {
         client.selectResource(registration.id)
         publish(true)
-        await client.login(returnTo)
+        await client.login(safeReturnTo)
       } catch {
         if (attempt === generation) publish(false, 'LOGIN_FAILED')
       }

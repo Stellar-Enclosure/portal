@@ -1,4 +1,5 @@
-import { isPlatformKey, type PlatformKey } from '../manifest/types'
+import type { WorkbenchHost } from '@stellar-enclosure/stellar-enclosure-web-shared'
+import { isPlatformKey, type ChildContractVersion, type PlatformKey } from '../manifest/types'
 
 export type SafeValue =
   | string
@@ -21,6 +22,11 @@ export interface ChildContext {
   readonly capabilitySummary?: { readonly [key: string]: SafeValue }
   readonly hostVersion?: string
   readonly resourceContext?: ChildResourceContext
+}
+
+export interface WorkbenchMountProps extends ChildContext {
+  readonly embedded: true
+  readonly workbenchHost?: WorkbenchHost
 }
 
 const sensitiveKey = /token|secret|cookie|authorization|password|raw.?body|header/i
@@ -85,5 +91,24 @@ export const sanitizeChildContext = (source: Record<string, unknown>): ChildCont
 }
 
 export const buildChildProps = (source: Record<string, unknown>): ChildContext => sanitizeChildContext(source)
+
+export const buildWorkbenchMountProps = (
+  source: Record<string, unknown>,
+  contractVersion: ChildContractVersion,
+  workbenchHost?: WorkbenchHost,
+): WorkbenchMountProps => {
+  const safeContext = sanitizeChildContext(source)
+  if (contractVersion === 'workbench-1' && workbenchHost) {
+    return {
+      ...safeContext,
+      embedded: true,
+      workbenchHost,
+    }
+  }
+  return {
+    ...safeContext,
+    embedded: true,
+  }
+}
 
 export const buildRouteEvent = (source: Record<string, unknown>): ChildContext => sanitizeChildContext(source)

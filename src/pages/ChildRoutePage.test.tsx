@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { AdminThemeProvider, I18nProvider, initI18n } from '@stellar-enclosure/stellar-enclosure-web-shared'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { startApp } from 'wujie'
 import { ChildRoutePage } from './ChildRoutePage'
@@ -130,5 +130,41 @@ describe('ChildRoutePage', () => {
       'beforeLoad',
       'afterMount',
     ])
+  })
+
+  it('reuses the same mounted Wujie instance when navigating between pages of the same workbench-1 app', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response(
+          manifest({
+            contractVersion: 'workbench-1',
+          }),
+        ),
+      ),
+    )
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AdminThemeProvider>
+          <I18nProvider>
+            <MemoryRouter initialEntries={['/xingyuan/yuheng/dashboard']}>
+              <Link to="/xingyuan/yuheng/applications">应用列表</Link>
+              <Routes>
+                <Route path="/xingyuan/:platformKey/*" element={<ChildRoutePage />} />
+              </Routes>
+            </MemoryRouter>
+          </I18nProvider>
+        </AdminThemeProvider>
+      </QueryClientProvider>,
+    )
+
+    await screen.findByTestId('wujie-host-yuheng')
+    expect(startApp).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('link', { name: '应用列表' }))
+    await screen.findByTestId('wujie-host-yuheng')
+    expect(startApp).toHaveBeenCalledTimes(1)
   })
 })

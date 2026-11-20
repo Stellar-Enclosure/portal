@@ -166,4 +166,9 @@ describe('mounted child route boundary', () => {
     expect(resolveChildUrl('/children/tianshu/', 'tianshu', '/xingyuan/tianshu/%252e%252e/yuheng/catalog'))
       .toBe(new URL('/children/tianshu/', window.location.href).toString())
   })
+
+  it('keeps workbench-1 initial mount on the approved base entry without suffixing the business route', () => {
+    expect(resolveChildUrl('/children/tianshu/', 'tianshu', '/xingyuan/tianshu/publish-tasks?changeId=1', 'workbench-1'))
+      .toBe(new URL('/children/tianshu/', window.location.href).toString())
+  })
 })
