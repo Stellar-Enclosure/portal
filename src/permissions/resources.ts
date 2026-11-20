@@ -156,6 +156,18 @@ export const resources = defineResources([
       "pageCode": "portal.web.permissions",
       "labelKey": "portal.menu.yaoguang"
     }
+  },
+  {
+    "key": "portal.menu.tianji",
+    "type": "MENU",
+    "target": {
+      "route": "/xingyuan/tianji/process-definitions"
+    },
+    "access": "PUBLIC",
+    "i18n": {
+      "pageCode": "portal.web.permissions",
+      "labelKey": "portal.menu.tianji"
+    }
   }
 ] as const)
 
@@ -262,6 +274,14 @@ export const messages = defineMessages([
     "defaultLocale": "en-US",
     "defaults": {
       "en-US": "yaoguang"
+    }
+  },
+  {
+    "pageCode": "portal.web.permissions",
+    "key": "portal.menu.tianji",
+    "defaultLocale": "en-US",
+    "defaults": {
+      "en-US": "tianji"
     }
   }
 ] as const)

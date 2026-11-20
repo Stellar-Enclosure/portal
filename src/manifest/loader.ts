@@ -1,6 +1,6 @@
-import type { ManifestErrorCode, PlatformKey, PlatformManifest } from './types'
+import { isChildContractVersion, type ManifestErrorCode, type PlatformKey, type PlatformManifest } from './types'
 
-export const PORTAL_HOST_VERSION = '0.0.1'
+export const PORTAL_HOST_VERSION = '0.0.2'
 
 export class ManifestLoadError extends Error {
   readonly code: ManifestErrorCode
@@ -157,6 +157,12 @@ const readManifest = (value: unknown, platformKey: PlatformKey): PlatformManifes
   if (candidate.key !== platformKey) {
     throw invalid('Manifest key does not match the requested xingyuan')
   }
+  if (!isChildContractVersion(candidate.contractVersion)) {
+    throw new ManifestLoadError(
+      'MANIFEST_VERSION_UNSUPPORTED',
+      `Unsupported child contract version ${String(candidate.contractVersion)}`,
+    )
+  }
   if (!Array.isArray(candidate.requiredCapabilities)
     || candidate.requiredCapabilities.some((capability) => typeof capability !== 'string' || !capability)) {
     throw invalid('Manifest requiredCapabilities must be a string array')
@@ -180,7 +186,7 @@ const readManifest = (value: unknown, platformKey: PlatformKey): PlatformManifes
     url: candidate.url as string,
     standaloneUrl: candidate.standaloneUrl as string,
     version: candidate.version as string,
-    contractVersion: candidate.contractVersion as string,
+    contractVersion: candidate.contractVersion,
     compatibleHostRange: candidate.compatibleHostRange as string,
     requiredCapabilities: [...candidate.requiredCapabilities as string[]],
     ...(typeof candidate.summaryUrl === 'string' ? { summaryUrl: candidate.summaryUrl } : {}),

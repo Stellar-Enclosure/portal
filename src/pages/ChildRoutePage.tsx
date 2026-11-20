@@ -6,16 +6,12 @@ import {PortalLayout} from '../app/PortalLayout'
 import {usePortalSession, type PortalSession} from '../auth/portalAuth'
 import { buildChildProps } from '../bridge/context'
 import { ManifestLoadError, PORTAL_HOST_VERSION, loadManifest, standaloneEntry } from '../manifest/loader'
-import type { PlatformKey } from '../manifest/types'
+import { isPlatformKey, type PlatformKey } from '../manifest/types'
 import { WujieChild } from '../lifecycle/WujieChild'
 import {
   initialLifecycleState,
   reduceLifecycle,
 } from '../lifecycle/lifecycleState'
-
-const isPlatformKey = (value: string | undefined): value is PlatformKey => (
-  value === 'tianquan-shoubing' || value === 'tianquan-jianshen' || value === 'yuheng' || value === 'tianshu' || value === 'yaoguang'
-)
 
 const errorCopy = (error: unknown): string => {
   if (error instanceof ManifestLoadError) {

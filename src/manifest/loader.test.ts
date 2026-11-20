@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {loadManifest} from './loader'
+import {PORTAL_HOST_VERSION, loadManifest} from './loader'
+import type {PlatformKey} from './types'
 
 const manifest = (overrides: Record<string, unknown> = {}) => ({
   key: 'tianquan-shoubing',
@@ -115,5 +116,55 @@ describe('fixed child mount URLs', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(manifest({url}))))
     await expect(loadManifest('tianquan-shoubing', 'local', new AbortController().signal))
       .rejects.toMatchObject({code: 'MANIFEST_URL_NOT_ALLOWED'})
+  })
+})
+
+describe('workbench-1 release compatibility and Tianji binding', () => {
+  it('uses host version 0.0.2 and accepts both xingyuan-1 and workbench-1 with Tianji binding', async () => {
+    expect(PORTAL_HOST_VERSION).toBe('0.0.2')
+    const tianjiKey = 'tianji' as PlatformKey
+    vi.stubEnv('VITE_PORTAL_CHILD_BINDINGS', JSON.stringify({
+      tianji: {
+        resource: 'https://resources.example.invalid/tianji',
+        url: '/children/tianji/',
+        standaloneUrl: '/tianji/process-definitions',
+      },
+    }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(manifest({
+      key: 'tianji',
+      displayName: 'Tianji',
+      resource: 'https://resources.example.invalid/tianji',
+      url: '/children/tianji/',
+      standaloneUrl: '/tianji/process-definitions',
+      contractVersion: 'workbench-1',
+      compatibleHostRange: '>=0.0.1 <0.1.0',
+      requiredCapabilities: ['tianji:read'],
+    }))))
+
+    await expect(loadManifest(tianjiKey, 'local', new AbortController().signal)).resolves.toMatchObject({
+      key: 'tianji',
+      contractVersion: 'workbench-1',
+      standaloneUrl: '/tianji/process-definitions',
+    })
+  })
+
+  it('rejects unknown contractVersion and missing Tianji deployment binding', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(manifest({
+      contractVersion: 'workbench-2',
+    }))))
+    await expect(loadManifest('tianquan-shoubing', 'local', new AbortController().signal))
+      .rejects.toMatchObject({ code: 'MANIFEST_VERSION_UNSUPPORTED' })
+
+    const tianjiKey = 'tianji' as PlatformKey
+    vi.stubEnv('VITE_PORTAL_CHILD_BINDINGS', JSON.stringify({}))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(manifest({
+      key: 'tianji',
+      resource: 'https://resources.example.invalid/tianji',
+      url: '/children/tianji/',
+      standaloneUrl: '/tianji/process-definitions',
+      contractVersion: 'workbench-1',
+    }))))
+    await expect(loadManifest(tianjiKey, 'local', new AbortController().signal))
+      .rejects.toMatchObject({ code: 'MANIFEST_RESOURCE_NOT_ALLOWED' })
   })
 })

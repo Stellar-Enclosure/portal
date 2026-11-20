@@ -58,6 +58,12 @@ export const PORTAL_PLATFORM_ITEMS: readonly PortalPlatformItem[] = [
     label: '知识库与 Wiki',
     path: '/xingyuan/yaoguang/knowledge',
   },
+  {
+    resourceKey: 'portal.menu.tianji',
+    key: 'tianji',
+    label: '流程编排',
+    path: '/xingyuan/tianji/process-definitions',
+  },
 ]
 
 export interface PortalHomePageProps {

@@ -1,4 +1,4 @@
-import type { PlatformKey } from '../manifest/types'
+import { isPlatformKey, type PlatformKey } from '../manifest/types'
 
 export type SafeValue =
   | string
@@ -24,10 +24,6 @@ export interface ChildContext {
 }
 
 const sensitiveKey = /token|secret|cookie|authorization|password|raw.?body|header/i
-
-const isPlatformKey = (value: unknown): value is PlatformKey => (
-  value === 'tianquan-shoubing' || value === 'tianquan-jianshen' || value === 'yuheng' || value === 'tianshu' || value === 'yaoguang'
-)
 
 const sanitizeValue = (value: unknown, key?: string): SafeValue | undefined => {
   if (key && sensitiveKey.test(key)) {

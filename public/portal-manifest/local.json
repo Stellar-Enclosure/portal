@@ -63,5 +63,18 @@
       "yuheng:knowledge:read"
     ],
     "resource": "https://resources.example.invalid/yaoguang"
+  },
+  "tianji": {
+    "key": "tianji",
+    "displayName": "tianji",
+    "url": "/children/tianji/",
+    "standaloneUrl": "/tianji/process-definitions",
+    "version": "0.0.1",
+    "contractVersion": "xingyuan-1",
+    "compatibleHostRange": ">=0.0.1 <0.1.0",
+    "requiredCapabilities": [
+      "tianji:read"
+    ],
+    "resource": "https://resources.example.invalid/tianji"
   }
 }
