@@ -148,6 +148,7 @@ export const WujieChild = ({
   const destroyRef = useRef<(() => unknown) | undefined>(undefined)
   const currentMount = useRef<string | undefined>(undefined)
   const [attachedPort, setAttachedPort] = useState<WorkbenchPort | undefined>(undefined)
+  const [readyCatalogRevision, setReadyCatalogRevision] = useState(0)
   const navigationSeqRef = useRef(0)
   const presentAbortRef = useRef<AbortController | undefined>(undefined)
 
@@ -302,6 +303,9 @@ export const WujieChild = ({
                 return bridgeOk()
               }
               lastCatalogRevision = update.catalogRevision
+              if (update.status === 'ready') {
+                setReadyCatalogRevision(update.catalogRevision)
+              }
               onStateRef.current({
                 type: 'CATALOG_UPDATE',
                 status: update.status,
@@ -448,6 +452,7 @@ export const WujieChild = ({
       presentAbortRef.current = undefined
       boundPort = undefined
       setAttachedPort(undefined)
+      setReadyCatalogRevision(0)
       onPortReadyRef.current?.(undefined)
       requests.abort()
       mount.remove()
@@ -495,7 +500,7 @@ export const WujieChild = ({
     return () => {
       controller.abort()
     }
-  }, [attachedPort, active, routeIntent, activeTabKey, manifest.contractVersion, manifest.key])
+  }, [attachedPort, active, routeIntent, activeTabKey, readyCatalogRevision, manifest.contractVersion, manifest.key])
 
   return (
     <ChildErrorBoundary onCrash={() => onStateRef.current({ type: 'CHILD_CRASHED', message: 'Child render failed' })}>

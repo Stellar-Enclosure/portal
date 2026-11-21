@@ -105,13 +105,13 @@ vi.mock('../lifecycle/WujieChild', async () => {
           status: 'ready',
           pages: [
             {
-              pageId: 'tianshu.page.configs',
-              pattern: '/governance/configs',
+              pageId: 'tianshu.page.publishTasks',
+              pattern: '/publish-tasks',
               label: '配置发布',
-              groupKey: 'governance',
-              groupLabel: '治理中心',
+              groupKey: 'runtime',
+              groupLabel: '运行态',
               identityParams: [],
-              queryKeys: [],
+              queryKeys: ['changeId'],
             },
           ],
         })
@@ -121,13 +121,13 @@ vi.mock('../lifecycle/WujieChild', async () => {
           status: 'ready',
           pages: [
             {
-              pageId: 'yuheng.page.apis',
-              pattern: '/governance/apis',
+              pageId: 'yuheng.page.interface.catalog',
+              pattern: '/interface-catalog',
               label: 'API 接口',
-              groupKey: 'governance',
-              groupLabel: '治理中心',
+              groupKey: 'yuheng.menu.group1',
+              groupLabel: '网关治理',
               identityParams: [],
-              queryKeys: [],
+              queryKeys: ['bizCode', 'namespace', 'env', 'appCode'],
             },
           ],
         })
@@ -259,7 +259,7 @@ describe('AgentPage (Step 23)', () => {
   })
 
   it('navigates between two business tabs, fixed /agent with Yaoguang assistant, Wiki citation, and back to /agent without remounting Yaoguang', async () => {
-    renderPortalAt('/xingyuan/tianshu/governance/configs')
+    renderPortalAt('/xingyuan/tianshu/publish-tasks')
 
     expect(await screen.findByTestId('wujie-host-tianshu')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Agent 助手' }))
