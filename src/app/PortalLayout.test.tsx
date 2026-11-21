@@ -120,7 +120,7 @@ describe('Portal shell', () => {
 
     // Fixed /agent entry stays outside closable tabs
     fireEvent.click(screen.getByRole('button', { name: 'Agent 助手' }))
-    expect(await screen.findByTestId('agent-page-placeholder')).toBeInTheDocument()
+    expect(await screen.findByTestId('agent-page')).toBeInTheDocument()
     expect(screen.queryAllByRole('tab')).toHaveLength(0)
   })
 })

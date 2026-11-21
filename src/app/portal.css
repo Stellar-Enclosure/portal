@@ -183,3 +183,56 @@
     padding: 0;
   }
 }
+
+.portal-agent-page {
+  padding: 16px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.portal-agent-tasks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.portal-agent-task-card {
+  min-width: 0;
+}
+
+.portal-child-slot-agent {
+  padding: 0 16px 16px;
+  overflow: hidden;
+}
+
+@media (max-width: 1120px) {
+  .portal-agent-tasks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .portal-agent-page {
+    padding: 12px 12px 6px;
+  }
+
+  .portal-agent-tasks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portal-child-slot-agent {
+    padding: 0 12px 12px;
+  }
+}
+
+@media (max-width: 420px) {
+  .portal-agent-page {
+    padding: 8px;
+  }
+
+  .portal-child-slot-agent {
+    padding: 0 8px 8px;
+  }
+}

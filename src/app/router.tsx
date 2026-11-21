@@ -4,6 +4,7 @@ import { Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { PORTAL_CALLBACK_ROUTE, portalAuth, usePortalSession } from '../auth/portalAuth'
 import { standaloneEntry } from '../manifest/loader'
 import { isPlatformKey, type PlatformKey } from '../manifest/types'
+import { AgentPage } from '../pages/AgentPage'
 import { AuthorizedChild } from '../pages/ChildRoutePage'
 import { PORTAL_PLATFORM_ITEMS, PortalHomePage } from '../pages/PortalHomePage'
 import { PortalLayout } from './PortalLayout'
@@ -46,24 +47,6 @@ const OAuthCallbackPage = () => {
     <PortalLayout>
       <Result status={failed ? 'error' : 'info'} title={failed ? '无法完成登录' : '正在验证登录'} />
     </PortalLayout>
-  )
-}
-
-const AgentPlaceholderPage = () => {
-  const workbench = useOptionalWorkbenchNavigation()
-  return (
-    <div data-testid="agent-page-placeholder" style={{ padding: 16 }}>
-      <Card title="星垣 Agent 助手">
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Typography.Text type="secondary">
-            当前阶段为全局入口占位，真实知识问答与任务跳转将在后续 Step 23 接入。
-          </Typography.Text>
-          <Space wrap>
-            <Button onClick={() => workbench?.openUrl('/')}>返回门户首页</Button>
-          </Space>
-        </Space>
-      </Card>
-    </div>
   )
 }
 
@@ -118,37 +101,53 @@ const WorkbenchStageRouter = () => {
     resolved.kind === 'app-workbench' || resolved.kind === 'app-page' ? resolved.canonicalUrl : '/'
 
   const mountedApps = workbench.mountedApps
+  const isAgentView = resolved.kind === 'agent'
+  const effectiveMountedApps =
+    isAgentView && !mountedApps.includes('yaoguang')
+      ? [...mountedApps, 'yaoguang' as const]
+      : mountedApps
+  const hasSession = Boolean(session.identity && !session.pending)
 
   return (
     <PortalLayout>
       {resolved.kind === 'home' && <PortalHomePage />}
-      {resolved.kind === 'agent' && <AgentPlaceholderPage />}
+      {isAgentView && <AgentPage hasSession={hasSession} />}
       {resolved.kind === 'app-workbench' && <AppWorkbenchOverview platformKey={resolved.platformKey} />}
       {resolved.kind === 'not-found' && (
         <Result status="404" title="页面不存在" subTitle="请从左侧平台菜单进入页面。" />
       )}
-      {activePlatformKey && (!session.identity || session.pending) && (
+      {activePlatformKey && !hasSession && (
         <Result
           status="info"
           title="登录后可在门户中打开平台"
           extra={standaloneEntry(activePlatformKey) && <a href={standaloneEntry(activePlatformKey)}>独立打开</a>}
         />
       )}
-      {session.identity && !session.pending && mountedApps.map((appKey) => {
+      {hasSession && effectiveMountedApps.map((appKey) => {
         if (!isPlatformKey(appKey)) return null
         const isCurrentAppPage = resolved.kind === 'app-page' && resolved.platformKey === appKey
         const isCurrentWorkbench = resolved.kind === 'app-workbench' && resolved.platformKey === appKey
+        const isAgentYaoguang = isAgentView && appKey === 'yaoguang'
+        const isVisible = isCurrentAppPage || isAgentYaoguang
         const activeTabForApp =
           workbench.state.tabs.find((tab) => tab.appId === appKey && tab.tabKey === workbench.state.activeTabKey) ??
           workbench.state.tabs.find((tab) => tab.appId === appKey && !tab.isWorkbench)
-        const targetPath = isCurrentAppPage
-          ? activeRouteIntent
-          : activeTabForApp?.canonicalUrl ?? `/xingyuan/${appKey}/workbench`
+        const targetPath = isAgentYaoguang
+          ? '/xingyuan/yaoguang/assistant/knowledge'
+          : isCurrentAppPage
+            ? activeRouteIntent
+            : activeTabForApp?.canonicalUrl ?? `/xingyuan/${appKey}/workbench`
+        const childTabKey = isAgentYaoguang
+          ? 'agent:knowledge'
+          : isCurrentAppPage
+            ? workbench.state.activeTabKey
+            : undefined
 
         return (
           <div
             key={`${session.epoch}:${appKey}`}
-            style={isCurrentAppPage ? { display: 'flex', flex: '1 1 0', minHeight: 0 } : { display: 'none' }}
+            className={isAgentYaoguang ? 'portal-child-slot portal-child-slot-agent' : 'portal-child-slot'}
+            style={isVisible ? { display: 'flex', flex: '1 1 0', minHeight: 0 } : { display: 'none' }}
             data-workbench-mounted-app={appKey}
             data-workbench-init-only={isCurrentWorkbench ? 'true' : undefined}
           >
@@ -157,8 +156,8 @@ const WorkbenchStageRouter = () => {
               pathname={targetPath}
               identity={session.identity!}
               epoch={session.epoch}
-              active={isCurrentAppPage}
-              activeTabKey={isCurrentAppPage ? workbench.state.activeTabKey : undefined}
+              active={isVisible}
+              activeTabKey={childTabKey}
               onCatalogUpdate={workbench.reportCatalog}
               onNavigationRequest={workbench.handleChildNavRequest}
               onPortReady={workbench.registerPort}
