@@ -1,15 +1,18 @@
 # portal
 
-Unified browser entry point for the five Stellar Enclosure platform consoles. Uses the shared Web SDK **0.1.0** and keeps the Portal host manifest contract at **0.0.1**.
+Unified browser entry point for the six Stellar Enclosure platform consoles. Uses the shared Web SDK **0.1.1** (`@stellar-enclosure/stellar-enclosure-web-shared@0.1.1` and `@stellar-enclosure/stellar-enclosure-tianquan-jianshen-react-sdk@0.1.1`) and keeps the Portal host manifest contract at **0.0.2** (`compatibleHostRange: ">=0.0.1 <0.1.0"`), accepting both **`workbench-1`** single-instance scoped workbench children and **`xingyuan-1`** legacy URL-mounted children during gradual migration.
 
 ## Current capabilities
 
-- Render shared enterprise navigation and mount independent consoles through Wujie under `/xingyuan/:platformKey/*`, with a standalone fallback entry for each application.
-- Validate deployment-owned manifests, child entry URLs, contract versions and host compatibility before mounting; pass the permitted host context and manage child teardown during navigation.
+- Render the unified enterprise workbench shell (`PortalLayout`) with a 52px top bar (`AppLauncherDrawer`, tenant selector, theme toggle, user menu), a 44px tab strip with fixed **`Agent 助手`** (`/agent`) and **`门户首页`** (`/`) buttons plus closable business workspace tabs, and a persistent child host stage (`WorkbenchStage`).
+- Keep at most one active Wujie child instance per `appKey` (`tianquan-shoubing`, `tianquan-jianshen`, `yuheng`, `tianshu`, `yaoguang`, `tianji`) mounted at stable `entryUrl` for `workbench-1` apps while driving tab presentation (`activate` / `suspend` / `close`), child route handoffs (`requestNavigation`), and authorized page catalog updates (`publishCatalog`) over a capability-scoped `WorkbenchHost` bridge.
+- Retain seamless fallback mounting for `xingyuan-1` child apps by computing sub-path entry URLs and hiding the child chrome only when `workbench-1` is active.
+- Connect the fixed `/agent` view to Yaoguang's embedded `/assistant/knowledge` workspace while keeping `/agent` out of the closable tab strip and routing citation/governance deep links (`/xingyuan/tianshu/governance/configs`, `/xingyuan/yuheng/governance/apis`, `/xingyuan/tianquan-jianshen/iam/roles`, `/xingyuan/yaoguang/knowledge/:kbId/wiki/:pageId`, `/xingyuan/yaoguang/knowledge/:kbId`) directly into business tabs.
+- Validate deployment-owned manifests, child entry URLs, contract versions (`workbench-1` | `xingyuan-1`), and host compatibility before mounting; pass the permitted host context and manage child teardown on logout, tenant switch, or identity change.
 - Sign in through a tenant PUBLIC OAuth registration with S256 PKCE. Each console manages its own resource authorization and the backend enforces business permissions.
-- Include a platform-summary facade/component with timeout, partial-failure and retry states. Summary adapters are optional and report `NOT_CONFIGURED` when absent; the current root route redirects to the first child entry.
+- Include a platform-summary facade/component with timeout, partial-failure and retry states. Summary adapters are optional and report `NOT_CONFIGURED` when absent.
 
-The implementation entry points are [routing](src/app/router.tsx), [platform navigation](src/pages/PortalHomePage.tsx), [manifest validation](src/manifest/loader.ts), [host/child context](src/bridge/context.ts) and the [summary facade](src/summary/platformSummaryFacade.ts). The portal does not implement platform business APIs or deploy child applications itself.
+The implementation entry points are [routing](src/app/router.tsx), [workbench shell](src/app/PortalLayout.tsx), [Agent view](src/pages/AgentPage.tsx), [platform overview](src/pages/PortalHomePage.tsx), [manifest validation](src/manifest/loader.ts), [navigation and tab model](src/navigation/WorkbenchTabsContext.tsx), [persistent child lifecycle](src/lifecycle/ChildLifecycleManager.ts), [scoped workbench bridge](src/lifecycle/WorkbenchBridge.ts), [host/child context](src/bridge/context.ts) and the [summary facade](src/summary/platformSummaryFacade.ts). The portal does not implement platform business APIs or deploy child applications itself.
 
 ## Build and test
 
@@ -35,19 +38,43 @@ The verifier uses actual pack checksums and official registry addresses in the c
 
 ## Child applications
 
-| Console | Portal entry | Owned functionality |
-|---|---|---|
-| [Shoubing](https://github.com/Stellar-Enclosure/tianquan-shoubing-web) | `/xingyuan/tianquan-shoubing/overview` | Identity, tenants, OAuth clients, resource grants, keys and audit. |
-| [Jianshen](https://github.com/Stellar-Enclosure/tianquan-jianshen-web) | `/xingyuan/tianquan-jianshen/iam/roles` | IAM directory, role/permission governance and authorization runtime. |
-| [Yuheng](https://github.com/Stellar-Enclosure/yuheng-web) | `/xingyuan/yuheng/dashboard` | Gateway management, API catalog, releases, MCP and LLM configuration. |
-| [Tianshu](https://github.com/Stellar-Enclosure/tianshu-web) | `/xingyuan/tianshu/registry` | Service registry, configuration, scope metadata and Prompt/Skill management. |
-| [Yaoguang](https://github.com/Stellar-Enclosure/yaoguang-web) | `/xingyuan/yaoguang/knowledge` | Knowledge bases, documents, retrieval answers and Wiki. |
+| Console | Domain | Portal default entry | Contract | Owned functionality & route scope |
+|---|---|---|---|---|
+| [Shoubing](https://github.com/Stellar-Enclosure/tianquan-shoubing-web) | 身份与权限 | `/xingyuan/tianquan-shoubing/overview` | `workbench-1` / `xingyuan-1` | Identity overview, tenants, users, OAuth clients, resource grants, signing keys and security audit (8 routes). |
+| [Jianshen](https://github.com/Stellar-Enclosure/tianquan-jianshen-web) | 身份与权限 | `/xingyuan/tianquan-jianshen/iam/roles` | `workbench-1` / `xingyuan-1` | IAM directory (users, groups, departments, positions), role/permission governance, resource tree and authorization audit (14 routes). |
+| [Yuheng](https://github.com/Stellar-Enclosure/yuheng-web) | API 与集成 | `/xingyuan/yuheng/dashboard` | `workbench-1` / `xingyuan-1` | Gateway dashboard, routes, upstreams, policies, API catalog, releases, MCP registry, LLM gateway, subscriptions and audit (22 routes). |
+| [Tianshu](https://github.com/Stellar-Enclosure/tianshu-web) | 配置与元数据 | `/xingyuan/tianshu/registry` | `workbench-1` / `xingyuan-1` | Service registry, configuration items & drafts, business/env/app/namespace/binding scope metadata, publish tasks, cache, instances, i18n, Prompt/Skill and SI resources (20 routes). |
+| [Yaoguang](https://github.com/Stellar-Enclosure/yaoguang-web) | 知识与智能 | `/xingyuan/yaoguang/knowledge` | `workbench-1` / `xingyuan-1` | Knowledge bases, documents, retrieval Q&A, Wiki and embedded `/assistant/knowledge` Agent collaboration view (4 routes). |
+| [Tianji](https://github.com/Stellar-Enclosure/tianji-web) | 流程与运行时 | `/xingyuan/tianji/definitions` | `workbench-1` / `xingyuan-1` | BPMN/DMN/CMMN process definitions & draft editors, releases, instances, human tasks (`/tasks` -> `/human-tasks` handoff), cases, execution timelines, worker failures and Agent runs (15 routes). |
 
-Deploy each console as static assets on its approved entry URL. Configure the Portal build with `VITE_PORTAL_CHILD_BINDINGS`, a JSON object keyed by the platform keys above. Each value supplies its exact `resource`, `url` for embedding, and `standaloneUrl`. The embedded URL ends with `/` or `/index.html`. Serve the same registration in `${BASE_URL}portal-manifest/<environment>.json`, adding the version range and metadata shown in the [local manifest example](public/portal-manifest/local.json). The example Resource URIs illustrate the shape. Deployment supplies the real approved HTTPS URLs and Resource URIs. `VITE_PORTAL_ENV` selects the manifest environment and defaults to `local`.
+Deploy each console as static assets on its approved entry URL. Configure the Portal build with `VITE_PORTAL_CHILD_BINDINGS`, a JSON object keyed by the six platform keys above. Each value supplies its exact `resource`, `url` for embedding, and `standaloneUrl`. The embedded URL ends with `/` or `/index.html`. Serve the same registration in `${BASE_URL}portal-manifest/<environment>.json`, adding the version range and metadata shown in the [local manifest example](public/portal-manifest/local.json). The example Resource URIs illustrate the shape. Deployment supplies the real approved HTTPS URLs and Resource URIs. `VITE_PORTAL_ENV` selects the manifest environment and defaults to `local`.
 
-Set `VITE_PORTAL_OAUTH_CONFIG` to an object with `activeResource` and `registrations`. Each registration follows the shared `PublicOAuthRegistration` contract and names the host's tenant, issuer, PUBLIC client, Resource, API base, scopes and the fixed issuer endpoints. Register the exact callback `${Portal HTTPS origin}${VITE_BASE_PATH}auth/oidc/callback/${registration.id}`. Configure the Portal static server to serve its SPA for that path and the routes in the table. The Portal reads the identity from the signed callback. The Wujie bridge carries the selected tenant, issuer and child Resource as public context. Every console uses its own registration and starts its own user-authorized flow.
+Set `VITE_PORTAL_OAUTH_CONFIG` to an object with `activeResource` and `registrations`. Each registration follows the shared `PublicOAuthRegistration` contract and names the host's tenant, issuer, PUBLIC client, Resource, API base, scopes and the fixed issuer endpoints. Register the exact callback `${Portal HTTPS origin}${VITE_BASE_PATH}auth/oidc/callback/${registration.id}`. Configure the Portal static server to serve its SPA for that path and the shell routes (`/`, `/agent`, `/xingyuan/:appKey/workbench`, `/xingyuan/:appKey/*`, `/standalone/:platformKey`). The Portal reads the identity from the signed callback. The Wujie bridge carries the selected tenant, issuer and child Resource as public context. Every console uses its own registration and starts its own user-authorized flow.
 
 Use an explicit loopback child binding for local development over HTTP. Production child entries and their independent URLs use HTTPS. Provide the IdP and resource CORS and approved routes through the platform deployment.
+
+## Workbench rollout, compatibility matrix, and per-APP rollback
+
+### 4-combination compatibility matrix
+
+| Host / Child combination | Runtime contract | Expected behavior |
+|---|---|---|
+| **Legacy Host (`0.0.1`) + Legacy Child (`xingyuan-1`)** | `xingyuan-1` | Baseline multi-entry URL mounting with child-owned chrome. |
+| **New Host (`0.0.2`) + Legacy Child (`xingyuan-1`)** | `xingyuan-1` | Portal shell renders top bar, tab strip, and `/agent`; legacy child mounts via sub-path URL (`resolveChildTargetUrl`) and retains its internal navigation until upgraded. |
+| **New Host (`0.0.2`) + New Child (`workbench-1`)** | `workbench-1` | Full single-instance workbench mode: child hides duplicate outer Sider/Header (`EmbeddedWorkbench`), publishes authorized `AppPageDescriptor[]` catalog, and switches tabs in-place via `onPresent` / `requestNavigation` without reloading the iframe/shadow root. |
+| **Legacy Host (`0.0.1`) + New Child (`workbench-1`)** | Standalone / `xingyuan-1` fallback | When `window.$wujie?.props?.workbenchHost` is absent, the child automatically falls back to `createBrowserRouter` with its full standalone `AdminLayout` and PUBLIC OAuth PKCE flow. |
+
+### Recommended staged rollout order
+
+1. **`web-sdk@0.1.1`**: Pack and verify `@stellar-enclosure/stellar-enclosure-web-shared@0.1.1` and `@stellar-enclosure/stellar-enclosure-tianquan-jianshen-react-sdk@0.1.1` across all seven consumer lockfiles (`verify-consumers.mjs --phase verify`).
+2. **`portal@0.0.2`**: Deploy the Portal workbench host while keeping `portal-manifest/<env>.json` entries at `xingyuan-1` for applications not yet switched, or `workbench-1` for applications cut over with the host.
+3. **Child consoles (`tianshu-web` -> `yuheng-web` -> `tianquan-shoubing-web` -> `tianquan-jianshen-web` -> `yaoguang-web` -> `tianji-web`)**: Deploy each child's static bundle alongside its matching `dist/permission-build.json` and update its `contractVersion` in `portal-manifest/<env>.json` to `"workbench-1"`.
+
+### Per-APP rollback procedure
+
+- **Single child rollback (no host downtime)**: If an individual child console encounters a regression after switching to `workbench-1`, revert that child's entry in `portal-manifest/<env>.json` to `"contractVersion": "xingyuan-1"` (or redeploy its previous static bundle together with its matching permission artifact). Portal `0.0.2` immediately falls back to `xingyuan-1` URL mounting for that `appKey` while all other `workbench-1` consoles continue running in single-instance workbench mode.
+- **Full host rollback**: Redeploy the previous Portal static bundle and manifest together with its matching permission artifact. Because all `0.1.1` child consoles automatically fall back to `createBrowserRouter` and full `AdminLayout` when `workbenchHost` is absent, upgraded child consoles remain functional under both standalone access and legacy host mounting.
+- **Security boundary during rollback**: Never re-enable retired static Edge tokens, shared OAuth client secrets, or cross-app token forwarding during rollback; every child console and Portal host continues to authenticate exclusively via its own tenant PUBLIC OAuth S256 PKCE registration.
 
 ## Application delivery (no package publication)
 
