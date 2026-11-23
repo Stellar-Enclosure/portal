@@ -7,6 +7,7 @@ import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from 'vitest
 import {createPortalAuth, type PortalSession} from '../auth/portalAuth'
 import {PortalLayout} from './PortalLayout'
 import {PortalRouter} from './router'
+import {useOptionalWorkbenchNavigation} from './workbench/WorkbenchTabs'
 
 const mock = vi.hoisted(() => ({
   portalAuth: {login: vi.fn(), logout: vi.fn(), completeRedirect: vi.fn()},
@@ -48,6 +49,40 @@ const child = {key: 'tianquan-shoubing', displayName: '身份与安全', url: '/
 const manifest = () => new Response(JSON.stringify(child), {status: 200})
 
 describe('Portal shell', () => {
+  it('keeps parameterized child routes out of the APP menu while resolving object tabs', async () => {
+    mock.read.mockReturnValue(signed)
+    const ChildCatalog = () => {
+      const workbench = useOptionalWorkbenchNavigation()!
+      return <>
+        <button onClick={() => workbench.reportCatalog('tianquan-jianshen', {
+          status: 'ready', catalogRevision: 1, pages: [
+            {pageId: 'roles', label: '角色', pattern: '/iam/roles', identityParams: [], queryKeys: []},
+            {pageId: 'role-permissions', label: '角色权限', pattern: '/iam/roles/:roleId/permissions', identityParams: ['roleId'], queryKeys: []},
+            {pageId: 'assignments', label: '用户任职', pattern: '/iam/users/:userId/role-assignments', identityParams: ['userId'], queryKeys: []},
+          ],
+        })}>发布已授权目录</button>
+        <button onClick={() => workbench.openUrl('/xingyuan/tianquan-jianshen/iam/roles/17/permissions')}>打开角色 17</button>
+        <button onClick={() => workbench.openUrl('/xingyuan/tianquan-jianshen/iam/roles/18/permissions')}>打开角色 18</button>
+      </>
+    }
+
+    render(<AdminThemeProvider><I18nProvider>
+      <MemoryRouter initialEntries={['/xingyuan/tianquan-jianshen/workbench']}>
+        <PortalLayout><ChildCatalog /></PortalLayout>
+      </MemoryRouter>
+    </I18nProvider></AdminThemeProvider>)
+    fireEvent.click(screen.getByRole('button', {name: '发布已授权目录'}))
+    expect(await screen.findByRole('menuitem', {name: '角色'})).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', {name: '角色权限'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', {name: '用户任职'})).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', {name: '打开角色 17'}))
+    expect(await screen.findByRole('tab', {name: /角色权限/})).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', {name: '打开角色 18'}))
+    await waitFor(() => expect(screen.getAllByRole('tab', {name: /角色权限/})).toHaveLength(2))
+    expect(screen.queryByTestId('portal-app-sider')).not.toBeInTheDocument()
+  })
+
   it('offers OIDC login in the header and preserves the route without forwarding query material', async () => {
     renderPortal(false, '/xingyuan/tianshu/registry?tenant=ignored')
     await screen.findByText('登录')

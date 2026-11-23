@@ -34,6 +34,7 @@ const buildAppSidebarItems = (
   const groups = new Map<string, { label: string; children: AppPageDescriptor[] }>()
   const ungrouped: AppPageDescriptor[] = []
   for (const page of catalog.pages) {
+    if (page.pattern.split('/').some((segment) => segment.startsWith(':'))) continue
     if (page.groupKey) {
       const existing = groups.get(page.groupKey)
       if (existing) {
